@@ -1,1338 +1,1198 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CMS Preview Transformer (Final Fix)</title>
-    <style>
-      :root {
-        --primary: #3182ce;
-        --primary-dark: #2c5282;
-        --secondary: #718096;
-        --success: #48bb78;
-        --danger: #e53e3e;
-        --border: #e2e8f0;
-        --background: #f7fafc;
-        --text: #1a202c;
-      }
-
-      * {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-          Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-      }
-
-      body {
-        background-color: var(--background);
-        color: var(--text);
-        padding: 20px;
-        line-height: 1.5;
-      }
-
-      .container {
-        max-width: 1600px;
-        margin: 0 auto;
-        background-color: white;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        overflow: hidden;
-      }
-
-      header {
-        background-color: var(--primary);
-        color: white;
-        padding: 15px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-      }
-
-      .app-title {
-        font-size: 18px;
-        font-weight: 600;
-      }
-
-      .app-version {
-        font-size: 12px;
-        opacity: 0.8;
-        margin-left: 8px;
-      }
-
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CMS Preview Transformer (Final Fix)</title>
+  <style>
+    :root {
+      --primary: #3182ce;
+      --primary-dark: #2c5282;
+      --secondary: #718096;
+      --success: #48bb78;
+      --danger: #e53e3e;
+      --border: #e2e8f0;
+      --background: #f7fafc;
+      --text: #1a202c;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+    
+    body {
+      background-color: var(--background);
+      color: var(--text);
+      padding: 20px;
+      line-height: 1.5;
+    }
+    
+    .container {
+      max-width: 1600px;
+      margin: 0 auto;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .app-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+    
+    .app-version {
+      font-size: 12px;
+      opacity: 0.8;
+      margin-left: 8px;
+    }
+    
+    main {
+      display: grid;
+      grid-template-columns: 1fr;
+      min-height: calc(100vh - 100px);
+    }
+    
+    @media (min-width: 1200px) {
       main {
-        display: grid;
-        grid-template-columns: 1fr;
-        min-height: calc(100vh - 100px);
+        grid-template-columns: 500px 1fr;
       }
-
-      @media (min-width: 1200px) {
-        main {
-          grid-template-columns: 500px 1fr;
-        }
-      }
-
-      .sidebar {
-        background-color: #f8fafc;
-        border-right: 1px solid var(--border);
-        padding: 20px;
-        height: 100%;
-        overflow-y: auto;
-      }
-
-      .preview-panel {
-        padding: 0;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .preview-header {
-        padding: 10px 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid var(--border);
-        background-color: #f8fafc;
-      }
-
-      .preview-title {
-        font-size: 16px;
-        font-weight: 600;
-      }
-
-      .preview-content {
-        flex-grow: 1;
-        overflow: auto;
-        position: relative;
-        min-height: 500px;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .preview-iframe {
-        width: 100%;
-        flex-grow: 1;
-        border: none;
-        min-height: 500px;
-      }
-
-      .form-group {
-        margin-bottom: 15px;
-      }
-
-      label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: 500;
-        font-size: 14px;
-      }
-
-      .input-control {
-        width: 100%;
-        padding: 8px 12px;
-        border: 1px solid #cbd5e0;
-        border-radius: 4px;
-        font-size: 14px;
-        transition: border-color 0.2s;
-      }
-
-      .input-control:focus {
-        border-color: var(--primary);
-        outline: none;
-      }
-
-      textarea.input-control {
-        min-height: 150px;
-        font-family: monospace;
-        resize: vertical;
-        font-size: 13px;
-      }
-
-      .input-code {
-        min-height: 250px;
-      }
-
-      .button {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 16px;
-        border: none;
-        border-radius: 4px;
-        font-size: 14px;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-
-      .button-primary {
-        background-color: var(--primary);
-        color: white;
-      }
-
-      .button-primary:hover {
-        background-color: var(--primary-dark);
-      }
-
-      .button-secondary {
-        background-color: var(--secondary);
-        color: white;
-      }
-
-      .button-secondary:hover {
-        background-color: #4a5568;
-      }
-
-      .button-success {
-        background-color: var(--success);
-        color: white;
-      }
-
-      .button-success:hover {
-        background-color: #38a169;
-      }
-
-      .button-danger {
-        background-color: var(--danger);
-        color: white;
-      }
-
-      .button-danger:hover {
-        background-color: #c53030;
-      }
-
-      .button:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-      }
-
-      .button-icon {
-        width: 16px;
-        height: 16px;
-        margin-right: 6px;
-      }
-
-      .spinner {
-        display: inline-block;
-        width: 16px;
-        height: 16px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s ease-in-out infinite;
-        margin-right: 6px;
-      }
-
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-
-      .status-bar {
-        border-top: 1px solid var(--border);
-        padding: 8px 20px;
-        font-size: 13px;
-        color: #718096;
-        display: flex;
-        justify-content: space-between;
-        background-color: #f8fafc;
-      }
-
-      .tabs {
-        display: flex;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .tab {
-        padding: 10px 15px;
-        cursor: pointer;
-        font-size: 14px;
-        border-bottom: 2px solid transparent;
-        transition: all 0.2s;
-      }
-
-      .tab:hover {
-        background-color: rgba(0, 0, 0, 0.05);
-      }
-
-      .tab.active {
-        color: var(--primary);
-        border-bottom-color: var(--primary);
-        font-weight: 500;
-      }
-
-      .tab-content {
-        display: none;
-        padding: 15px 0;
-      }
-
-      .tab-content.active {
-        display: block;
-      }
-
-      .code-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-      }
-
-      .code-badge {
-        font-size: 12px;
-        color: #718096;
-        font-family: monospace;
-        padding: 2px 6px;
-        background: #f1f5f9;
-        border-radius: 4px;
-      }
-
-      .button-small {
-        padding: 4px 8px;
-        font-size: 12px;
-      }
-
-      .code-output {
-        position: relative;
-      }
-
-      .copy-button {
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        z-index: 10;
-        background-color: rgba(0, 0, 0, 0.1);
-        color: #4a5568;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 8px;
-        font-size: 12px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-      }
-
-      .copy-button:hover {
-        background-color: rgba(0, 0, 0, 0.2);
-      }
-
-      .badge {
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: 500;
-      }
-
-      .badge-success {
-        background-color: #c6f6d5;
-        color: #276749;
-      }
-
-      .badge-info {
-        background-color: #bee3f8;
-        color: #2b6cb0;
-      }
-
-      .badge-warning {
-        background-color: #feebc8;
-        color: #c05621;
-      }
-
-      .card {
-        border: 1px solid var(--border);
-        border-radius: 4px;
-        margin-bottom: 15px;
-        overflow: hidden;
-      }
-
-      .card-header {
-        padding: 10px 15px;
-        background-color: #f8fafc;
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-weight: 500;
-      }
-
-      .card-body {
-        padding: 15px;
-      }
-
-      .toggle-button {
-        background: none;
-        border: none;
-        cursor: pointer;
-        color: #718096;
-      }
-
-      .alert {
-        padding: 10px 15px;
-        border-radius: 4px;
-        margin-bottom: 15px;
-        font-size: 14px;
-      }
-
-      .alert-info {
-        background-color: #bee3f8;
-        color: #2b6cb0;
-      }
-
-      .button-group {
-        display: flex;
-        gap: 10px;
-        margin: 15px 0;
-        flex-wrap: wrap;
-      }
-
-      .hidden {
-        display: none;
-      }
-
-      .url-example {
-        font-family: monospace;
-        font-size: 12px;
-        padding: 10px;
-        background-color: #f8fafc;
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 10px;
-        word-break: break-all;
-      }
-
-      .url-arrow {
-        display: block;
-        text-align: center;
-        margin: 10px 0;
-        color: #718096;
-      }
-
-      .checkbox-group {
-        display: flex;
-        align-items: center;
-        margin-bottom: 10px;
-      }
-
-      .checkbox-group input[type="checkbox"] {
-        margin-right: 10px;
-      }
-
-      .info-box {
-        padding: 10px;
-        background-color: #f8fafc;
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-        margin: 15px 0;
-        font-size: 13px;
-      }
-
-      .info-title {
-        margin-bottom: 5px;
-        font-weight: 600;
-      }
-
-      .info-content {
-        font-family: monospace;
-        white-space: pre-wrap;
-        max-height: 200px;
-        overflow-y: auto;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <div>
-          <span class="app-title">CMS Preview Transformer</span>
-          <span class="app-version">Final</span>
+    }
+    
+    .sidebar {
+      background-color: #f8fafc;
+      border-right: 1px solid var(--border);
+      padding: 20px;
+      height: 100%;
+      overflow-y: auto;
+    }
+    
+    .preview-panel {
+      padding: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .preview-header {
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background-color: #f8fafc;
+    }
+    
+    .preview-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .preview-content {
+      flex-grow: 1;
+      overflow: auto;
+      position: relative;
+      min-height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .preview-iframe {
+      width: 100%;
+      flex-grow: 1;
+      border: none;
+      min-height: 500px;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    
+    .input-control {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #cbd5e0;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    
+    .input-control:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    
+    textarea.input-control {
+      min-height: 150px;
+      font-family: monospace;
+      resize: vertical;
+      font-size: 13px;
+    }
+    
+    .input-code {
+      min-height: 250px;
+    }
+    
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .button-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    
+    .button-primary:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    .button-secondary {
+      background-color: var(--secondary);
+      color: white;
+    }
+    
+    .button-secondary:hover {
+      background-color: #4a5568;
+    }
+    
+    .button-success {
+      background-color: var(--success);
+      color: white;
+    }
+    
+    .button-success:hover {
+      background-color: #38a169;
+    }
+    
+    .button-danger {
+      background-color: var(--danger);
+      color: white;
+    }
+    
+    .button-danger:hover {
+      background-color: #c53030;
+    }
+    
+    .button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    
+    .button-icon {
+      width: 16px;
+      height: 16px;
+      margin-right: 6px;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 6px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .status-bar {
+      border-top: 1px solid var(--border);
+      padding: 8px 20px;
+      font-size: 13px;
+      color: #718096;
+      display: flex;
+      justify-content: space-between;
+      background-color: #f8fafc;
+    }
+    
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .tab {
+      padding: 10px 15px;
+      cursor: pointer;
+      font-size: 14px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    
+    .tab:hover {
+      background-color: rgba(0,0,0,0.05);
+    }
+    
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: 500;
+    }
+    
+    .tab-content {
+      display: none;
+      padding: 15px 0;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .code-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .code-badge {
+      font-size: 12px;
+      color: #718096;
+      font-family: monospace;
+      padding: 2px 6px;
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    
+    .button-small {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+    
+    .code-output {
+      position: relative;
+    }
+    
+    .copy-button {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      z-index: 10;
+      background-color: rgba(0,0,0,0.1);
+      color: #4a5568;
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .copy-button:hover {
+      background-color: rgba(0,0,0,0.2);
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    
+    .badge-success {
+      background-color: #c6f6d5;
+      color: #276749;
+    }
+    
+    .badge-info {
+      background-color: #bee3f8;
+      color: #2b6cb0;
+    }
+    
+    .badge-warning {
+      background-color: #feebc8;
+      color: #c05621;
+    }
+    
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      margin-bottom: 15px;
+      overflow: hidden;
+    }
+    
+    .card-header {
+      padding: 10px 15px;
+      background-color: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 500;
+    }
+    
+    .card-body {
+      padding: 15px;
+    }
+    
+    .toggle-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #718096;
+    }
+    
+    .alert {
+      padding: 10px 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    
+    .alert-info {
+      background-color: #bee3f8;
+      color: #2b6cb0;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+      flex-wrap: wrap;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    .url-example {
+      font-family: monospace;
+      font-size: 12px;
+      padding: 10px;
+      background-color: #f8fafc;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    
+    .url-arrow {
+      display: block;
+      text-align: center;
+      margin: 10px 0;
+      color: #718096;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      margin-right: 10px;
+    }
+    
+    .info-box {
+      padding: 10px;
+      background-color: #f8fafc;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      margin: 15px 0;
+      font-size: 13px;
+    }
+    
+    .info-title {
+      margin-bottom: 5px;
+      font-weight: 600;
+    }
+    
+    .info-content {
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <span class="app-title">CMS Preview Transformer</span>
+        <span class="app-version">Final</span>
+      </div>
+      <div>
+        <span class="badge badge-success">For Maariv</span>
+      </div>
+    </header>
+    
+    <main>
+      <div class="sidebar">
+        <div class="alert alert-info">
+          <strong>Final Fix:</strong> Preserves data-h & data-w attributes for image dimensions. Removes srcset attributes.
         </div>
-        <div>
-          <span class="badge badge-success">For Maariv</span>
+        
+        <div class="tabs">
+          <div class="tab active" data-tab="input">Input</div>
+          <div class="tab" data-tab="config">Config</div>
+          <div class="tab" data-tab="output">Output</div>
         </div>
-      </header>
-
-      <main>
-        <div class="sidebar">
-          <div class="alert alert-info">
-            <strong>Final Fix:</strong> Preserves data-h & data-w attributes for
-            image dimensions. Removes srcset attributes.
+        
+        <div id="input-tab" class="tab-content active">
+          <div class="form-group">
+            <label for="control-id">Control ID:</label>
+            <input type="text" id="control-id" class="input-control" placeholder="e.g., 7230">
           </div>
-
+          
+          <div class="form-group">
+            <label for="html-input">Next.js Component HTML:</label>
+            <textarea id="html-input" class="input-control input-code" placeholder="Paste your Next.js component HTML here..."></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label for="css-input">CSS Styles:</label>
+            <textarea id="css-input" class="input-control input-code" placeholder="Paste your CSS styles here..."></textarea>
+          </div>
+          
+          <div class="button-group">
+            <button id="analyze-button" class="button button-primary">
+              <span id="analyze-spinner" class="spinner hidden"></span>
+              Analyze Structure
+            </button>
+            <button id="load-sample-button" class="button button-secondary">Load Sample</button>
+            <button id="clear-button" class="button button-secondary">Clear All</button>
+          </div>
+        </div>
+        
+        <div id="config-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <span>Image Settings</span>
+              <button class="toggle-button" data-target="image-config">▼</button>
+            </div>
+            <div id="image-config" class="card-body">
+              <div class="checkbox-group">
+                <input type="checkbox" id="extract-image-urls" checked>
+                <label for="extract-image-urls">Extract original image URLs from Next.js images</label>
+              </div>
+              
+              <div class="checkbox-group">
+                <input type="checkbox" id="preserve-dimensions" checked>
+                <label for="preserve-dimensions">Preserve data-h and data-w attributes</label>
+              </div>
+              
+              <div class="checkbox-group">
+                <input type="checkbox" id="remove-srcset" checked>
+                <label for="remove-srcset">Remove srcset attributes</label>
+              </div>
+              
+              <div class="form-group">
+                <label for="image-domain">Image Domain:</label>
+                <input type="text" id="image-domain" class="input-control" value="images.maariv.co.il" placeholder="e.g., images.maariv.co.il">
+              </div>
+              
+              <div class="url-example">
+                <div><strong>Next.js URL:</strong></div>
+                <div>/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F965526&amp;w=1080&amp;q=75</div>
+                <div class="url-arrow">↓</div>
+                <div><strong>Extracted URL:</strong></div>
+                <div>https://images.maariv.co.il/image/upload/f_auto,fl_lossy/c_fill,g_faces:center,h_250,w_250/965526</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <span>Element Selectors</span>
+              <button class="toggle-button" data-target="element-config">▼</button>
+            </div>
+            <div id="element-config" class="card-body">
+              <div class="form-group">
+                <label for="container-selector">Container Selector:</label>
+                <input type="text" id="container-selector" class="input-control" placeholder="Auto-detect">
+              </div>
+              
+              <div class="form-group">
+                <label for="title-selector">Title Elements:</label>
+                <input type="text" id="title-selector" class="input-control" placeholder="[class*='article-title']">
+              </div>
+              
+              <div class="form-group">
+                <label for="image-selector">Image Elements:</label>
+                <input type="text" id="image-selector" class="input-control" placeholder="img[class*='image']">
+              </div>
+              
+              <div class="form-group">
+                <label for="link-selector">Link Elements:</label>
+                <input type="text" id="link-selector" class="input-control" placeholder="a[href]">
+              </div>
+            </div>
+          </div>
+          
+          <div class="card">
+            <div class="card-header">
+              <span>CMS Integration</span>
+              <button class="toggle-button" data-target="cms-config">▼</button>
+            </div>
+            <div id="cms-config" class="card-body">
+              <div class="form-group">
+                <label for="id-prefix">ID Prefix:</label>
+                <input type="text" id="id-prefix" class="input-control" value="view_article">
+              </div>
+              
+              <div class="form-group">
+                <label for="empty-attributes">Empty Attributes (except src):</label>
+                <input type="text" id="empty-attributes" class="input-control" value="href">
+              </div>
+              
+              <div class="form-group">
+                <label for="direction">Direction:</label>
+                <select id="direction" class="input-control">
+                  <option value="auto">Auto Detect</option>
+                  <option value="rtl">Right to Left (RTL)</option>
+                  <option value="ltr">Left to Right (LTR)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <div class="button-group">
+            <button id="transform-button" class="button button-primary" disabled>
+              <span id="transform-spinner" class="spinner hidden"></span>
+              Transform to CMS Preview
+            </button>
+          </div>
+        </div>
+        
+        <div id="output-tab" class="tab-content">
           <div class="tabs">
-            <div class="tab active" data-tab="input">Input</div>
-            <div class="tab" data-tab="config">Config</div>
-            <div class="tab" data-tab="output">Output</div>
+            <div class="tab active" data-tab="html-output">HTML</div>
+            <div class="tab" data-tab="css-output">CSS</div>
+            <div class="tab" data-tab="combined-output">Combined</div>
           </div>
-
-          <div id="input-tab" class="tab-content active">
-            <div class="form-group">
-              <label for="control-id">Control ID:</label>
-              <input
-                type="text"
-                id="control-id"
-                class="input-control"
-                placeholder="e.g., 7230"
-              />
+          
+          <div id="html-output-tab" class="tab-content active">
+            <div class="code-header">
+              <span>CMS Preview HTML</span>
+              <span class="code-badge">HTML</span>
             </div>
-
-            <div class="form-group">
-              <label for="html-input">Next.js Component HTML:</label>
-              <textarea
-                id="html-input"
-                class="input-control input-code"
-                placeholder="Paste your Next.js component HTML here..."
-              ></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="css-input">CSS Styles:</label>
-              <textarea
-                id="css-input"
-                class="input-control input-code"
-                placeholder="Paste your CSS styles here..."
-              ></textarea>
-            </div>
-
-            <div class="button-group">
-              <button id="analyze-button" class="button button-primary">
-                <span id="analyze-spinner" class="spinner hidden"></span>
-                Analyze Structure
-              </button>
-              <button id="load-sample-button" class="button button-secondary">
-                Load Sample
-              </button>
-              <button id="clear-button" class="button button-secondary">
-                Clear All
-              </button>
+            <div class="code-output">
+              <textarea id="html-output" class="input-control input-code" readonly></textarea>
+              <button id="copy-html" class="copy-button">Copy HTML</button>
             </div>
           </div>
-
-          <div id="config-tab" class="tab-content">
-            <div class="card">
-              <div class="card-header">
-                <span>Image Settings</span>
-                <button class="toggle-button" data-target="image-config">
-                  ▼
-                </button>
-              </div>
-              <div id="image-config" class="card-body">
-                <div class="checkbox-group">
-                  <input type="checkbox" id="extract-image-urls" checked />
-                  <label for="extract-image-urls"
-                    >Extract original image URLs from Next.js images</label
-                  >
-                </div>
-
-                <div class="checkbox-group">
-                  <input type="checkbox" id="preserve-dimensions" checked />
-                  <label for="preserve-dimensions"
-                    >Preserve data-h and data-w attributes</label
-                  >
-                </div>
-
-                <div class="checkbox-group">
-                  <input type="checkbox" id="remove-srcset" checked />
-                  <label for="remove-srcset">Remove srcset attributes</label>
-                </div>
-
-                <div class="form-group">
-                  <label for="image-domain">Image Domain:</label>
-                  <input
-                    type="text"
-                    id="image-domain"
-                    class="input-control"
-                    value="images.maariv.co.il"
-                    placeholder="e.g., images.maariv.co.il"
-                  />
-                </div>
-
-                <div class="url-example">
-                  <div><strong>Next.js URL:</strong></div>
-                  <div>
-                    /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F965526&amp;w=1080&amp;q=75
-                  </div>
-                  <div class="url-arrow">↓</div>
-                  <div><strong>Extracted URL:</strong></div>
-                  <div>
-                    https://images.maariv.co.il/image/upload/f_auto,fl_lossy/c_fill,g_faces:center,h_250,w_250/965526
-                  </div>
-                </div>
-              </div>
+          
+          <div id="css-output-tab" class="tab-content">
+            <div class="code-header">
+              <span>CMS Preview CSS</span>
+              <span class="code-badge">CSS</span>
             </div>
-
-            <div class="card">
-              <div class="card-header">
-                <span>Element Selectors</span>
-                <button class="toggle-button" data-target="element-config">
-                  ▼
-                </button>
-              </div>
-              <div id="element-config" class="card-body">
-                <div class="form-group">
-                  <label for="container-selector">Container Selector:</label>
-                  <input
-                    type="text"
-                    id="container-selector"
-                    class="input-control"
-                    placeholder="Auto-detect"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="title-selector">Title Elements:</label>
-                  <input
-                    type="text"
-                    id="title-selector"
-                    class="input-control"
-                    placeholder="[class*='article-title']"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="image-selector">Image Elements:</label>
-                  <input
-                    type="text"
-                    id="image-selector"
-                    class="input-control"
-                    placeholder="img[class*='image']"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="link-selector">Link Elements:</label>
-                  <input
-                    type="text"
-                    id="link-selector"
-                    class="input-control"
-                    placeholder="a[href]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <span>CMS Integration</span>
-                <button class="toggle-button" data-target="cms-config">
-                  ▼
-                </button>
-              </div>
-              <div id="cms-config" class="card-body">
-                <div class="form-group">
-                  <label for="id-prefix">ID Prefix:</label>
-                  <input
-                    type="text"
-                    id="id-prefix"
-                    class="input-control"
-                    value="view_article"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="empty-attributes"
-                    >Empty Attributes (except src):</label
-                  >
-                  <input
-                    type="text"
-                    id="empty-attributes"
-                    class="input-control"
-                    value="href"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="direction">Direction:</label>
-                  <select id="direction" class="input-control">
-                    <option value="auto">Auto Detect</option>
-                    <option value="rtl">Right to Left (RTL)</option>
-                    <option value="ltr">Left to Right (LTR)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div class="button-group">
-              <button
-                id="transform-button"
-                class="button button-primary"
-                disabled
-              >
-                <span id="transform-spinner" class="spinner hidden"></span>
-                Transform to CMS Preview
-              </button>
+            <div class="code-output">
+              <textarea id="css-output" class="input-control input-code" readonly></textarea>
+              <button id="copy-css" class="copy-button">Copy CSS</button>
             </div>
           </div>
-
-          <div id="output-tab" class="tab-content">
-            <div class="tabs">
-              <div class="tab active" data-tab="html-output">HTML</div>
-              <div class="tab" data-tab="css-output">CSS</div>
-              <div class="tab" data-tab="combined-output">Combined</div>
+          
+          <div id="combined-output-tab" class="tab-content">
+            <div class="code-header">
+              <span>Complete HTML Document</span>
+              <span class="code-badge">HTML</span>
             </div>
-
-            <div id="html-output-tab" class="tab-content active">
-              <div class="code-header">
-                <span>CMS Preview HTML</span>
-                <span class="code-badge">HTML</span>
-              </div>
-              <div class="code-output">
-                <textarea
-                  id="html-output"
-                  class="input-control input-code"
-                  readonly
-                ></textarea>
-                <button id="copy-html" class="copy-button">Copy HTML</button>
-              </div>
+            <div class="code-output">
+              <textarea id="combined-output" class="input-control input-code" readonly></textarea>
+              <button id="copy-combined" class="copy-button">Copy All</button>
             </div>
-
-            <div id="css-output-tab" class="tab-content">
-              <div class="code-header">
-                <span>CMS Preview CSS</span>
-                <span class="code-badge">CSS</span>
-              </div>
-              <div class="code-output">
-                <textarea
-                  id="css-output"
-                  class="input-control input-code"
-                  readonly
-                ></textarea>
-                <button id="copy-css" class="copy-button">Copy CSS</button>
-              </div>
-            </div>
-
-            <div id="combined-output-tab" class="tab-content">
-              <div class="code-header">
-                <span>Complete HTML Document</span>
-                <span class="code-badge">HTML</span>
-              </div>
-              <div class="code-output">
-                <textarea
-                  id="combined-output"
-                  class="input-control input-code"
-                  readonly
-                ></textarea>
-                <button id="copy-combined" class="copy-button">Copy All</button>
-              </div>
-            </div>
-
-            <div class="button-group">
-              <button
-                id="download-button"
-                class="button button-success"
-                disabled
-              >
-                Download as HTML
-              </button>
-            </div>
-
-            <div id="image-summary" class="info-box hidden">
-              <div class="info-title">Image URL Transformations:</div>
-              <div id="image-content" class="info-content"></div>
-            </div>
+          </div>
+          
+          <div class="button-group">
+            <button id="download-button" class="button button-success" disabled>Download as HTML</button>
+          </div>
+          
+          <div id="image-summary" class="info-box hidden">
+            <div class="info-title">Image URL Transformations:</div>
+            <div id="image-content" class="info-content"></div>
           </div>
         </div>
-
-        <div class="preview-panel">
-          <div class="preview-header">
-            <div class="preview-title">Live Preview</div>
-            <div>
-              <span id="preview-badge" class="badge badge-info">Ready</span>
-            </div>
-          </div>
-          <div class="preview-content">
-            <iframe
-              id="preview-iframe"
-              class="preview-iframe"
-              srcdoc="<html><body style='display:flex;justify-content:center;align-items:center;height:100%;color:#718096;font-family:system-ui;'>Analyze component to see preview</body></html>"
-            ></iframe>
-          </div>
-          <div class="status-bar">
-            <div id="status-message">Ready to transform</div>
-            <div id="image-count">0 images found</div>
+      </div>
+      
+      <div class="preview-panel">
+        <div class="preview-header">
+          <div class="preview-title">Live Preview</div>
+          <div>
+            <span id="preview-badge" class="badge badge-info">Ready</span>
           </div>
         </div>
-      </main>
-    </div>
+        <div class="preview-content">
+          <iframe id="preview-iframe" class="preview-iframe" srcdoc="<html><body style='display:flex;justify-content:center;align-items:center;height:100%;color:#718096;font-family:system-ui;'>Analyze component to see preview</body></html>"></iframe>
+        </div>
+        <div class="status-bar">
+          <div id="status-message">Ready to transform</div>
+          <div id="image-count">0 images found</div>
+        </div>
+      </div>
+    </main>
+  </div>
 
-    <script>
-      /***********************************************
-       * CMS PREVIEW TRANSFORMER (FINAL FIX)
-       * - Preserves data-h & data-w attributes
-       * - Removes srcset attributes
-       * - Extracts original image URLs
-       ***********************************************/
-
-      // DOM Elements
-      const htmlInput = document.getElementById("html-input");
-      const cssInput = document.getElementById("css-input");
-      const controlIdInput = document.getElementById("control-id");
-      const containerSelectorInput =
-        document.getElementById("container-selector");
-      const titleSelectorInput = document.getElementById("title-selector");
-      const imageSelectorInput = document.getElementById("image-selector");
-      const linkSelectorInput = document.getElementById("link-selector");
-      const idPrefixInput = document.getElementById("id-prefix");
-      const emptyAttributesInput = document.getElementById("empty-attributes");
-      const directionSelect = document.getElementById("direction");
-      const extractImageUrlsCheckbox =
-        document.getElementById("extract-image-urls");
-      const preserveDimensionsCheckbox = document.getElementById(
-        "preserve-dimensions"
-      );
-      const removeSrcsetCheckbox = document.getElementById("remove-srcset");
-      const imageDomainInput = document.getElementById("image-domain");
-
-      // Output Elements
-      const htmlOutput = document.getElementById("html-output");
-      const cssOutput = document.getElementById("css-output");
-      const combinedOutput = document.getElementById("combined-output");
-      const previewIframe = document.getElementById("preview-iframe");
-      const statusMessage = document.getElementById("status-message");
-      const previewBadge = document.getElementById("preview-badge");
-      const imageCount = document.getElementById("image-count");
-      const imageSummary = document.getElementById("image-summary");
-      const imageContent = document.getElementById("image-content");
-
-      // Buttons
-      const analyzeButton = document.getElementById("analyze-button");
-      const transformButton = document.getElementById("transform-button");
-      const loadSampleButton = document.getElementById("load-sample-button");
-      const clearButton = document.getElementById("clear-button");
-      const downloadButton = document.getElementById("download-button");
-      const copyHtmlButton = document.getElementById("copy-html");
-      const copyCssButton = document.getElementById("copy-css");
-      const copyCombinedButton = document.getElementById("copy-combined");
-
-      // Spinners
-      const analyzeSpinner = document.getElementById("analyze-spinner");
-      const transformSpinner = document.getElementById("transform-spinner");
-
-      // Tab Navigation
-      document.querySelectorAll(".tab").forEach((tab) => {
-        tab.addEventListener("click", () => {
-          // Find parent tab group
-          const tabGroup = tab.closest(".tabs");
-
-          // Deactivate all tabs in this group
-          tabGroup
-            .querySelectorAll(".tab")
-            .forEach((t) => t.classList.remove("active"));
-
-          // Activate clicked tab
-          tab.classList.add("active");
-
-          // Handle content visibility based on which type of tabs these are
-          const tabType = tab.getAttribute("data-tab");
-
-          // Main tabs
-          if (
-            tabType === "input" ||
-            tabType === "config" ||
-            tabType === "output"
-          ) {
-            document
-              .querySelectorAll("#input-tab, #config-tab, #output-tab")
-              .forEach((content) => content.classList.remove("active"));
-            document.getElementById(`${tabType}-tab`).classList.add("active");
-          }
-          // Output subtabs
-          else if (
-            tabType === "html-output" ||
-            tabType === "css-output" ||
-            tabType === "combined-output"
-          ) {
-            document
-              .querySelectorAll(
-                "#html-output-tab, #css-output-tab, #combined-output-tab"
-              )
-              .forEach((content) => content.classList.remove("active"));
-            document.getElementById(`${tabType}-tab`).classList.add("active");
-          }
-        });
+  <script>
+    /***********************************************
+     * CMS PREVIEW TRANSFORMER (FINAL FIX)
+     * - Preserves data-h & data-w attributes
+     * - Removes srcset attributes
+     * - Extracts original image URLs
+     ***********************************************/
+    
+    // DOM Elements
+    const htmlInput = document.getElementById('html-input');
+    const cssInput = document.getElementById('css-input');
+    const controlIdInput = document.getElementById('control-id');
+    const containerSelectorInput = document.getElementById('container-selector');
+    const titleSelectorInput = document.getElementById('title-selector');
+    const imageSelectorInput = document.getElementById('image-selector');
+    const linkSelectorInput = document.getElementById('link-selector');
+    const idPrefixInput = document.getElementById('id-prefix');
+    const emptyAttributesInput = document.getElementById('empty-attributes');
+    const directionSelect = document.getElementById('direction');
+    const extractImageUrlsCheckbox = document.getElementById('extract-image-urls');
+    const preserveDimensionsCheckbox = document.getElementById('preserve-dimensions');
+    const removeSrcsetCheckbox = document.getElementById('remove-srcset');
+    const imageDomainInput = document.getElementById('image-domain');
+    
+    // Output Elements
+    const htmlOutput = document.getElementById('html-output');
+    const cssOutput = document.getElementById('css-output');
+    const combinedOutput = document.getElementById('combined-output');
+    const previewIframe = document.getElementById('preview-iframe');
+    const statusMessage = document.getElementById('status-message');
+    const previewBadge = document.getElementById('preview-badge');
+    const imageCount = document.getElementById('image-count');
+    const imageSummary = document.getElementById('image-summary');
+    const imageContent = document.getElementById('image-content');
+    
+    // Buttons
+    const analyzeButton = document.getElementById('analyze-button');
+    const transformButton = document.getElementById('transform-button');
+    const loadSampleButton = document.getElementById('load-sample-button');
+    const clearButton = document.getElementById('clear-button');
+    const downloadButton = document.getElementById('download-button');
+    const copyHtmlButton = document.getElementById('copy-html');
+    const copyCssButton = document.getElementById('copy-css');
+    const copyCombinedButton = document.getElementById('copy-combined');
+    
+    // Spinners
+    const analyzeSpinner = document.getElementById('analyze-spinner');
+    const transformSpinner = document.getElementById('transform-spinner');
+    
+    // Tab Navigation
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Find parent tab group
+        const tabGroup = tab.closest('.tabs');
+        
+        // Deactivate all tabs in this group
+        tabGroup.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        
+        // Activate clicked tab
+        tab.classList.add('active');
+        
+        // Handle content visibility based on which type of tabs these are
+        const tabType = tab.getAttribute('data-tab');
+        
+        // Main tabs
+        if (tabType === 'input' || tabType === 'config' || tabType === 'output') {
+          document.querySelectorAll('#input-tab, #config-tab, #output-tab').forEach(
+            content => content.classList.remove('active')
+          );
+          document.getElementById(`${tabType}-tab`).classList.add('active');
+        } 
+        // Output subtabs
+        else if (tabType === 'html-output' || tabType === 'css-output' || tabType === 'combined-output') {
+          document.querySelectorAll('#html-output-tab, #css-output-tab, #combined-output-tab').forEach(
+            content => content.classList.remove('active')
+          );
+          document.getElementById(`${tabType}-tab`).classList.add('active');
+        }
       });
-
-      // Toggle buttons
-      document.querySelectorAll(".toggle-button").forEach((button) => {
-        button.addEventListener("click", () => {
-          const targetId = button.getAttribute("data-target");
-          const targetElement = document.getElementById(targetId);
-
-          if (targetElement.style.display === "none") {
-            targetElement.style.display = "block";
-            button.textContent = "▼";
-          } else {
-            targetElement.style.display = "none";
-            button.textContent = "▶";
-          }
-        });
+    });
+    
+    // Toggle buttons
+    document.querySelectorAll('.toggle-button').forEach(button => {
+      button.addEventListener('click', () => {
+        const targetId = button.getAttribute('data-target');
+        const targetElement = document.getElementById(targetId);
+        
+        if (targetElement.style.display === 'none') {
+          targetElement.style.display = 'block';
+          button.textContent = '▼';
+        } else {
+          targetElement.style.display = 'none';
+          button.textContent = '▶';
+        }
       });
-
-      /**
-       * Extract original image URL from Next.js image URL
-       */
-      function extractOriginalImageUrl(nextJsUrl, imageDomain) {
-        if (!nextJsUrl) return nextJsUrl;
-
-        // Check if it's a Next.js image URL
-        if (nextJsUrl.includes("/_next/image?url=")) {
-          try {
-            // Extract the encoded URL parameter using regex
-            const urlMatch = nextJsUrl.match(/url=([^&]+)/);
-            if (urlMatch && urlMatch[1]) {
-              let encodedUrl = urlMatch[1];
-
-              // Replace HTML entities &amp; with &
-              encodedUrl = encodedUrl.replace(/&amp;/g, "&");
-
-              // Decode the URL parameter
-              const decodedUrl = decodeURIComponent(encodedUrl);
-
-              // Verify it's from the expected domain
-              if (decodedUrl.includes(imageDomain)) {
-                return decodedUrl;
-              }
+    });
+    
+    /**
+     * Extract original image URL from Next.js image URL
+     */
+    function extractOriginalImageUrl(nextJsUrl, imageDomain) {
+      if (!nextJsUrl) return nextJsUrl;
+      
+      // Check if it's a Next.js image URL
+      if (nextJsUrl.includes('/_next/image?url=')) {
+        try {
+          // Extract the encoded URL parameter using regex
+          const urlMatch = nextJsUrl.match(/url=([^&]+)/);
+          if (urlMatch && urlMatch[1]) {
+            let encodedUrl = urlMatch[1];
+            
+            // Replace HTML entities &amp; with &
+            encodedUrl = encodedUrl.replace(/&amp;/g, '&');
+            
+            // Decode the URL parameter
+            const decodedUrl = decodeURIComponent(encodedUrl);
+            
+            // Verify it's from the expected domain
+            if (decodedUrl.includes(imageDomain)) {
+              return decodedUrl;
             }
-          } catch (error) {
-            console.error("Error extracting image URL:", error);
           }
+        } catch (error) {
+          console.error('Error extracting image URL:', error);
         }
-
-        // Return original URL if not a Next.js URL or extraction failed
-        return nextJsUrl;
       }
-
-      /**
-       * Process all image elements to extract original URLs
-       * FIXED: Preserves data-h and data-w attributes
-       */
-      function processImageUrls(doc, imageDomain, options) {
-        const { preserveDimensions, removeSrcset } = options;
-        const images = doc.querySelectorAll("img[src]");
-        let processed = [];
-
-        images.forEach((img) => {
-          const nextJsUrl = img.getAttribute("src");
-
-          // PRESERVE DATA-H AND DATA-W ATTRIBUTES
-          // These are critical for the CMS to rebuild image URLs correctly
-          let dataH = img.getAttribute("data-h");
-          let dataW = img.getAttribute("data-w");
-
-          // REMOVE SRCSET ATTRIBUTE IF REQUESTED
-          if (removeSrcset && img.hasAttribute("srcset")) {
-            img.removeAttribute("srcset");
-          }
-
-          if (nextJsUrl && nextJsUrl.includes("/_next/image?url=")) {
-            const originalUrl = extractOriginalImageUrl(nextJsUrl, imageDomain);
-
-            // Try to extract dimensions from URL if they're missing and preserveDimensions is enabled
-            if (preserveDimensions && (!dataH || !dataW)) {
-              const dimensionsMatch = originalUrl.match(/h_(\d+),w_(\d+)/);
-              if (dimensionsMatch) {
-                dataH = dimensionsMatch[1];
-                dataW = dimensionsMatch[2];
-
-                // Set the data attributes
-                img.setAttribute("data-h", dataH);
-                img.setAttribute("data-w", dataW);
-              }
-            }
-
-            // Store transformation for reporting
-            processed.push({
-              nextJsUrl,
-              originalUrl,
-              dimensions: { h: dataH, w: dataW },
-              element:
-                img.outerHTML.substring(0, 100) +
-                (img.outerHTML.length > 100 ? "..." : ""),
-            });
-
-            // Replace the Next.js URL with the original URL
-            if (originalUrl !== nextJsUrl) {
-              img.setAttribute("src", originalUrl);
+      
+      // Return original URL if not a Next.js URL or extraction failed
+      return nextJsUrl;
+    }
+    
+    /**
+     * Process all image elements to extract original URLs
+     * FIXED: Preserves data-h and data-w attributes
+     */
+    function processImageUrls(doc, imageDomain, options) {
+      const { preserveDimensions, removeSrcset } = options;
+      const images = doc.querySelectorAll('img[src]');
+      let processed = [];
+      
+      images.forEach(img => {
+        const nextJsUrl = img.getAttribute('src');
+        
+        // PRESERVE DATA-H AND DATA-W ATTRIBUTES
+        // These are critical for the CMS to rebuild image URLs correctly
+        let dataH = img.getAttribute('data-h');
+        let dataW = img.getAttribute('data-w');
+        
+        // REMOVE SRCSET ATTRIBUTE IF REQUESTED
+        if (removeSrcset && img.hasAttribute('srcset')) {
+          img.removeAttribute('srcset');
+        }
+        
+        if (nextJsUrl && nextJsUrl.includes('/_next/image?url=')) {
+          const originalUrl = extractOriginalImageUrl(nextJsUrl, imageDomain);
+          
+          // Try to extract dimensions from URL if they're missing and preserveDimensions is enabled
+          if (preserveDimensions && (!dataH || !dataW)) {
+            const dimensionsMatch = originalUrl.match(/h_(\d+),w_(\d+)/);
+            if (dimensionsMatch) {
+              dataH = dimensionsMatch[1];
+              dataW = dimensionsMatch[2];
+              
+              // Set the data attributes
+              img.setAttribute('data-h', dataH);
+              img.setAttribute('data-w', dataW);
             }
           }
-
-          // Make sure data-h and data-w are preserved if requested
-          if (preserveDimensions && dataH && dataW) {
-            img.setAttribute("data-h", dataH);
-            img.setAttribute("data-w", dataW);
+          
+          // Store transformation for reporting
+          processed.push({
+            nextJsUrl,
+            originalUrl,
+            dimensions: { h: dataH, w: dataW },
+            element: img.outerHTML.substring(0, 100) + (img.outerHTML.length > 100 ? '...' : '')
+          });
+          
+          // Replace the Next.js URL with the original URL
+          if (originalUrl !== nextJsUrl) {
+            img.setAttribute('src', originalUrl);
           }
-        });
-
-        return processed;
+        }
+        
+        // Make sure data-h and data-w are preserved if requested
+        if (preserveDimensions && dataH && dataW) {
+          img.setAttribute('data-h', dataH);
+          img.setAttribute('data-w', dataW);
+        }
+      });
+      
+      return processed;
+    }
+    
+    // Analyze component structure
+    function analyzeComponent() {
+      if (!htmlInput.value.trim()) {
+        alert('Please enter HTML input');
+        return;
       }
-
-      // Analyze component structure
-      function analyzeComponent() {
-        if (!htmlInput.value.trim()) {
-          alert("Please enter HTML input");
-          return;
-        }
-
-        // Show spinner
-        analyzeSpinner.classList.remove("hidden");
-        analyzeButton.disabled = true;
-        statusMessage.textContent = "Analyzing component...";
-        previewBadge.textContent = "Analyzing";
-        previewBadge.className = "badge badge-info";
-
-        // Use setTimeout to allow UI to update
-        setTimeout(() => {
-          try {
-            // Parse HTML
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(
-              htmlInput.value.trim(),
-              "text/html"
-            );
-
-            // Detect component type and settings
-            const componentInfo = detectComponentType(doc);
-
-            // Set detected values in form fields
-            if (componentInfo.containerSelector) {
-              containerSelectorInput.value = componentInfo.containerSelector;
-            }
-
-            if (componentInfo.titleSelector) {
-              titleSelectorInput.value = componentInfo.titleSelector;
-            }
-
-            if (componentInfo.imageSelector) {
-              imageSelectorInput.value = componentInfo.imageSelector;
-            }
-
-            if (componentInfo.linkSelector) {
-              linkSelectorInput.value = componentInfo.linkSelector;
-            }
-
-            // Detect direction
-            const detectedDirection = detectDirection(doc);
-            directionSelect.value = detectedDirection;
-
-            // Count elements
-            const titles = doc.querySelectorAll(componentInfo.titleSelector);
-            const images = doc.querySelectorAll(componentInfo.imageSelector);
-            const links = doc.querySelectorAll(componentInfo.linkSelector);
-
-            // Update status
-            imageCount.textContent = `Found: ${titles.length} titles, ${images.length} images, ${links.length} links`;
-
-            // Show preview
-            updatePreview(
-              htmlInput.value.trim(),
-              cssInput.value.trim(),
-              detectedDirection
-            );
-
-            // Enable transform button
-            transformButton.disabled = false;
-
-            // Update status
-            statusMessage.textContent =
-              "Analysis complete. Ready to transform.";
-            previewBadge.textContent = "Analyzed";
-            previewBadge.className = "badge badge-success";
-
-            // Switch to config tab
-            document.querySelector('.tab[data-tab="config"]').click();
-          } catch (error) {
-            console.error("Analysis error:", error);
-            statusMessage.textContent = "Error: " + error.message;
-            previewBadge.textContent = "Error";
-            previewBadge.className = "badge badge-warning";
-          } finally {
-            // Hide spinner
-            analyzeSpinner.classList.add("hidden");
-            analyzeButton.disabled = false;
+      
+      // Show spinner
+      analyzeSpinner.classList.remove('hidden');
+      analyzeButton.disabled = true;
+      statusMessage.textContent = 'Analyzing component...';
+      previewBadge.textContent = 'Analyzing';
+      previewBadge.className = 'badge badge-info';
+      
+      // Use setTimeout to allow UI to update
+      setTimeout(() => {
+        try {
+          // Parse HTML
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlInput.value.trim(), 'text/html');
+          
+          // Detect component type and settings
+          const componentInfo = detectComponentType(doc);
+          
+          // Set detected values in form fields
+          if (componentInfo.containerSelector) {
+            containerSelectorInput.value = componentInfo.containerSelector;
           }
-        }, 100);
-      }
-
-      // Detect component type and selectors
-      function detectComponentType(doc) {
-        const result = {
-          containerSelector: "",
-          titleSelector: "",
-          imageSelector: "",
-          linkSelector: "",
-        };
-
-        // Try to detect five-articles component
-        if (doc.querySelector(".five-articles-with-images-container")) {
-          result.containerSelector = ".five-articles-with-images-container";
-          result.titleSelector = '[class*="article-title"]';
-          result.imageSelector = 'img[class*="image"]';
-          result.linkSelector = "a[href]";
-          return result;
+          
+          if (componentInfo.titleSelector) {
+            titleSelectorInput.value = componentInfo.titleSelector;
+          }
+          
+          if (componentInfo.imageSelector) {
+            imageSelectorInput.value = componentInfo.imageSelector;
+          }
+          
+          if (componentInfo.linkSelector) {
+            linkSelectorInput.value = componentInfo.linkSelector;
+          }
+          
+          // Detect direction
+          const detectedDirection = detectDirection(doc);
+          directionSelect.value = detectedDirection;
+          
+          // Count elements
+          const titles = doc.querySelectorAll(componentInfo.titleSelector);
+          const images = doc.querySelectorAll(componentInfo.imageSelector);
+          const links = doc.querySelectorAll(componentInfo.linkSelector);
+          
+          // Update status
+          imageCount.textContent = `Found: ${titles.length} titles, ${images.length} images, ${links.length} links`;
+          
+          // Show preview
+          updatePreview(htmlInput.value.trim(), cssInput.value.trim(), detectedDirection);
+          
+          // Enable transform button
+          transformButton.disabled = false;
+          
+          // Update status
+          statusMessage.textContent = 'Analysis complete. Ready to transform.';
+          previewBadge.textContent = 'Analyzed';
+          previewBadge.className = 'badge badge-success';
+          
+          // Switch to config tab
+          document.querySelector('.tab[data-tab="config"]').click();
+        } catch (error) {
+          console.error('Analysis error:', error);
+          statusMessage.textContent = 'Error: ' + error.message;
+          previewBadge.textContent = 'Error';
+          previewBadge.className = 'badge badge-warning';
+        } finally {
+          // Hide spinner
+          analyzeSpinner.classList.add('hidden');
+          analyzeButton.disabled = false;
         }
-
-        // Try to detect three-articles component
-        if (doc.querySelector(".three-articles-container")) {
-          result.containerSelector = ".three-articles-container";
-          result.titleSelector = '[class*="article-title"]';
-          result.imageSelector = 'img[class*="image"]';
-          result.linkSelector = "a[href]";
-          return result;
-        }
-
-        // Generic article detection
-        result.containerSelector = '[class*="container"]';
-        result.titleSelector = '[class*="title"]';
-        result.imageSelector = "img";
-        result.linkSelector = "a[href]";
-
+      }, 100);
+    }
+    
+    // Detect component type and selectors
+    function detectComponentType(doc) {
+      const result = {
+        containerSelector: '',
+        titleSelector: '',
+        imageSelector: '',
+        linkSelector: ''
+      };
+      
+      // Try to detect five-articles component
+      if (doc.querySelector('.five-articles-with-images-container')) {
+        result.containerSelector = '.five-articles-with-images-container';
+        result.titleSelector = '[class*="article-title"]';
+        result.imageSelector = 'img[class*="image"]';
+        result.linkSelector = 'a[href]';
         return result;
       }
-
-      // Detect content direction
-      function detectDirection(doc) {
-        // Check for RTL direction attribute
-        if (doc.querySelector('[dir="rtl"], [style*="direction: rtl"]')) {
-          return "rtl";
-        }
-
-        // Check for Hebrew/Arabic text
-        const rtlPattern = /[\u0590-\u05FF\u0600-\u06FF]/;
-        if (rtlPattern.test(doc.body.textContent)) {
-          return "rtl";
-        }
-
-        return "ltr";
+      
+      // Try to detect three-articles component
+      if (doc.querySelector('.three-articles-container')) {
+        result.containerSelector = '.three-articles-container';
+        result.titleSelector = '[class*="article-title"]';
+        result.imageSelector = 'img[class*="image"]';
+        result.linkSelector = 'a[href]';
+        return result;
       }
-
-      // Transform to CMS preview
-      function transformToCmsPreview() {
-        if (!htmlInput.value.trim() || !cssInput.value.trim()) {
-          alert("Please enter both HTML and CSS");
-          return;
-        }
-
-        // Show spinner
-        transformSpinner.classList.remove("hidden");
-        transformButton.disabled = true;
-        statusMessage.textContent = "Transforming to CMS preview...";
-        previewBadge.textContent = "Transforming";
-        previewBadge.className = "badge badge-info";
-
-        // Use setTimeout to allow UI to update
-        setTimeout(() => {
-          try {
-            // Get configuration
-            const config = {
-              controlId: controlIdInput.value.trim(),
-              containerSelector: containerSelectorInput.value.trim(),
-              titleSelector: titleSelectorInput.value.trim(),
-              imageSelector: imageSelectorInput.value.trim(),
-              linkSelector: linkSelectorInput.value.trim(),
-              idPrefix: idPrefixInput.value.trim(),
-              emptyAttributes: emptyAttributesInput.value
-                .split(",")
-                .map((attr) => attr.trim()),
-              direction: directionSelect.value,
-              extractImageUrls: extractImageUrlsCheckbox.checked,
-              preserveDimensions: preserveDimensionsCheckbox.checked,
-              removeSrcset: removeSrcsetCheckbox.checked,
-              imageDomain: imageDomainInput.value.trim(),
-            };
-
-            // Transform HTML (Fixed version)
-            const transformResult = transformHtml(
-              htmlInput.value.trim(),
-              config
-            );
-            const transformedHtml = transformResult.html;
-
-            // Transform CSS
-            const transformedCss = transformCss(cssInput.value.trim(), config);
-
-            // Generate combined output
-            const combinedHtml = generateFullHtml(
-              transformedHtml,
-              transformedCss,
-              config
-            );
-
-            // Update output
-            htmlOutput.value = transformedHtml;
-            cssOutput.value = transformedCss;
-            combinedOutput.value = combinedHtml;
-
-            // Update image transformations summary
-            updateImageSummary(transformResult.imageTransformations);
-
-            // Enable download button
-            downloadButton.disabled = false;
-
-            // Update preview
-            updatePreview(transformedHtml, transformedCss, config.direction);
-
-            // Update status
-            statusMessage.textContent = "Transformation complete";
-            previewBadge.textContent = "Transformed";
-            previewBadge.className = "badge badge-success";
-
-            // Switch to output tab
-            document.querySelector('.tab[data-tab="output"]').click();
-          } catch (error) {
-            console.error("Transformation error:", error);
-            statusMessage.textContent = "Error: " + error.message;
-            previewBadge.textContent = "Error";
-            previewBadge.className = "badge badge-warning";
-          } finally {
-            // Hide spinner
-            transformSpinner.classList.add("hidden");
-            transformButton.disabled = false;
-          }
-        }, 100);
+      
+      // Generic article detection
+      result.containerSelector = '[class*="container"]';
+      result.titleSelector = '[class*="title"]';
+      result.imageSelector = 'img';
+      result.linkSelector = 'a[href]';
+      
+      return result;
+    }
+    
+    // Detect content direction
+    function detectDirection(doc) {
+      // Check for RTL direction attribute
+      if (doc.querySelector('[dir="rtl"], [style*="direction: rtl"]')) {
+        return 'rtl';
       }
-
-      /**
-       * Transform HTML to CMS preview
-       * FIXED: Properly handles image dimensions and removes srcset
-       */
-      function transformHtml(html, config) {
-        const {
-          controlId,
-          containerSelector,
-          titleSelector,
-          imageSelector,
-          linkSelector,
-          idPrefix,
-          emptyAttributes,
-          extractImageUrls,
+      
+      // Check for Hebrew/Arabic text
+      const rtlPattern = /[\u0590-\u05FF\u0600-\u06FF]/;
+      if (rtlPattern.test(doc.body.textContent)) {
+        return 'rtl';
+      }
+      
+      return 'ltr';
+    }
+    
+    // Transform to CMS preview
+    function transformToCmsPreview() {
+      if (!htmlInput.value.trim() || !cssInput.value.trim()) {
+        alert('Please enter both HTML and CSS');
+        return;
+      }
+      
+      // Show spinner
+      transformSpinner.classList.remove('hidden');
+      transformButton.disabled = true;
+      statusMessage.textContent = 'Transforming to CMS preview...';
+      previewBadge.textContent = 'Transforming';
+      previewBadge.className = 'badge badge-info';
+      
+      // Use setTimeout to allow UI to update
+      setTimeout(() => {
+        try {
+          // Get configuration
+          const config = {
+            controlId: controlIdInput.value.trim(),
+            containerSelector: containerSelectorInput.value.trim(),
+            titleSelector: titleSelectorInput.value.trim(),
+            imageSelector: imageSelectorInput.value.trim(),
+            linkSelector: linkSelectorInput.value.trim(),
+            idPrefix: idPrefixInput.value.trim(),
+            emptyAttributes: emptyAttributesInput.value.split(',').map(attr => attr.trim()),
+            direction: directionSelect.value,
+            extractImageUrls: extractImageUrlsCheckbox.checked,
+            preserveDimensions: preserveDimensionsCheckbox.checked,
+            removeSrcset: removeSrcsetCheckbox.checked,
+            imageDomain: imageDomainInput.value.trim()
+          };
+          
+          // Transform HTML (Fixed version)
+          const transformResult = transformHtml(htmlInput.value.trim(), config);
+          const transformedHtml = transformResult.html;
+          
+          // Transform CSS
+          const transformedCss = transformCss(cssInput.value.trim(), config);
+          
+          // Generate combined output
+          const combinedHtml = generateFullHtml(transformedHtml, transformedCss, config);
+          
+          // Update output
+          htmlOutput.value = transformedHtml;
+          cssOutput.value = transformedCss;
+          combinedOutput.value = combinedHtml;
+          
+          // Update image transformations summary
+          updateImageSummary(transformResult.imageTransformations);
+          
+          // Enable download button
+          downloadButton.disabled = false;
+          
+          // Update preview
+          updatePreview(transformedHtml, transformedCss, config.direction);
+          
+          // Update status
+          statusMessage.textContent = 'Transformation complete';
+          previewBadge.textContent = 'Transformed';
+          previewBadge.className = 'badge badge-success';
+          
+          // Switch to output tab
+          document.querySelector('.tab[data-tab="output"]').click();
+        } catch (error) {
+          console.error('Transformation error:', error);
+          statusMessage.textContent = 'Error: ' + error.message;
+          previewBadge.textContent = 'Error';
+          previewBadge.className = 'badge badge-warning';
+        } finally {
+          // Hide spinner
+          transformSpinner.classList.add('hidden');
+          transformButton.disabled = false;
+        }
+      }, 100);
+    }
+    
+    /**
+     * Transform HTML to CMS preview
+     * FIXED: Properly handles image dimensions and removes srcset
+     */
+    function transformHtml(html, config) {
+      const {
+        controlId,
+        containerSelector,
+        titleSelector,
+        imageSelector,
+        linkSelector,
+        idPrefix,
+        emptyAttributes,
+        extractImageUrls,
+        preserveDimensions,
+        removeSrcset,
+        imageDomain
+      } = config;
+      
+      // Parse HTML
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      
+      // Process image URLs first if enabled
+      let imageTransformations = [];
+      if (extractImageUrls) {
+        imageTransformations = processImageUrls(doc, imageDomain, {
           preserveDimensions,
-          removeSrcset,
-          imageDomain,
-        } = config;
-
-        // Parse HTML
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-
-        // Process image URLs first if enabled
-        let imageTransformations = [];
-        if (extractImageUrls) {
-          imageTransformations = processImageUrls(doc, imageDomain, {
-            preserveDimensions,
-            removeSrcset,
-          });
-        } else if (removeSrcset) {
-          // Just remove srcset if we're not extracting URLs
-          doc.querySelectorAll("img[srcset]").forEach((img) => {
-            img.removeAttribute("srcset");
-          });
-        }
-
-        // Find container element
-        let container = null;
-        if (containerSelector) {
-          container = doc.querySelector(containerSelector);
-        }
-
-        // Fallback to first major element if container not found
-        if (!container) {
-          const containerCandidates = [
-            '[class*="container"]',
-            "body > section",
-            "body > div",
-            "body > *:first-child",
-          ];
-
-          for (const selector of containerCandidates) {
-            container = doc.querySelector(selector);
-            if (container) break;
-          }
-        }
-
-        // Add Control ID to container
-        if (controlId && container) {
-          container.setAttribute("ControlID", controlId);
-        }
-
-        // Add IDs to title elements
-        if (titleSelector) {
-          const titles = doc.querySelectorAll(titleSelector);
-          titles.forEach((el, index) => {
-            el.id = `${idPrefix}_title_${index}`;
-          });
-        }
-
-        // Add IDs to image elements
-        if (imageSelector) {
-          const images = doc.querySelectorAll(imageSelector);
-          images.forEach((el, index) => {
-            el.id = `${idPrefix}_img_${index}`;
-
-            // Ensure Next.js image attributes
-            if (!el.hasAttribute("loading")) {
-              el.setAttribute("loading", "lazy");
-            }
-
-            if (!el.hasAttribute("decoding")) {
-              el.setAttribute("decoding", "async");
-            }
-
-            if (!el.hasAttribute("data-nimg")) {
-              el.setAttribute("data-nimg", "1");
-            }
-          });
-        }
-
-        // Add IDs to link elements
-        if (linkSelector) {
-          const links = doc.querySelectorAll(linkSelector);
-          links.forEach((el, index) => {
-            el.id = `${idPrefix}_friendlyURL_${index}`;
-
-            // Add target="_blank" for CMS preview
-            if (!el.hasAttribute("target")) {
-              el.setAttribute("target", "_blank");
-            }
-          });
-        }
-
-        // Empty specified attributes
-        if (emptyAttributes && emptyAttributes.length > 0) {
-          emptyAttributes.forEach((attr) => {
-            if (!attr || attr.trim() === "src") return; // Skip src attributes!
-
-            const elements = doc.querySelectorAll(`[${attr}]`);
-            elements.forEach((el) => {
-              el.setAttribute(attr, "");
-            });
-          });
-        }
-
-        return {
-          html: doc.body.innerHTML,
-          imageTransformations,
-        };
+          removeSrcset
+        });
+      } else if (removeSrcset) {
+        // Just remove srcset if we're not extracting URLs
+        doc.querySelectorAll('img[srcset]').forEach(img => {
+          img.removeAttribute('srcset');
+        });
       }
-
-      // Transform CSS for CMS preview
-      function transformCss(css, config) {
-        const { direction, idPrefix } = config;
-
-        // Preserve all original CSS
-        let transformedCss = css;
-
-        // Remove dark mode styles
-        transformedCss = transformedCss.replace(
-          /\[data-theme=['"]dark['"]\][^{]*{[^}]*}/g,
-          ""
-        );
-        transformedCss = transformedCss.replace(
-          /@media\s+\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*{[^}]*}/g,
-          ""
-        );
-
-        // Add minimal CMS preview styles
-        const cmsStyles = `
+      
+      // Find container element
+      let container = null;
+      if (containerSelector) {
+        container = doc.querySelector(containerSelector);
+      }
+      
+      // Fallback to first major element if container not found
+      if (!container) {
+        const containerCandidates = [
+          '[class*="container"]',
+          'body > section',
+          'body > div',
+          'body > *:first-child'
+        ];
+        
+        for (const selector of containerCandidates) {
+          container = doc.querySelector(selector);
+          if (container) break;
+        }
+      }
+      
+      // Add Control ID to container
+      if (controlId && container) {
+        container.setAttribute('ControlID', controlId);
+      }
+      
+      // Add IDs to title elements
+      if (titleSelector) {
+        const titles = doc.querySelectorAll(titleSelector);
+        titles.forEach((el, index) => {
+          el.id = `${idPrefix}_title_${index}`;
+        });
+      }
+      
+      // Add IDs to image elements
+      if (imageSelector) {
+        const images = doc.querySelectorAll(imageSelector);
+        images.forEach((el, index) => {
+          el.id = `${idPrefix}_img_${index}`;
+          
+          // Ensure Next.js image attributes
+          if (!el.hasAttribute('loading')) {
+            el.setAttribute('loading', 'lazy');
+          }
+          
+          if (!el.hasAttribute('decoding')) {
+            el.setAttribute('decoding', 'async');
+          }
+          
+          if (!el.hasAttribute('data-nimg')) {
+            el.setAttribute('data-nimg', '1');
+          }
+        });
+      }
+      
+      // Add IDs to link elements
+      if (linkSelector) {
+        const links = doc.querySelectorAll(linkSelector);
+        links.forEach((el, index) => {
+          el.id = `${idPrefix}_friendlyURL_${index}`;
+          
+          // Add target="_blank" for CMS preview
+          if (!el.hasAttribute('target')) {
+            el.setAttribute('target', '_blank');
+          }
+        });
+      }
+      
+      // Empty specified attributes
+      if (emptyAttributes && emptyAttributes.length > 0) {
+        emptyAttributes.forEach(attr => {
+          if (!attr || attr.trim() === 'src') return; // Skip src attributes!
+          
+          const elements = doc.querySelectorAll(`[${attr}]`);
+          elements.forEach(el => {
+            el.setAttribute(attr, '');
+          });
+        });
+      }
+      
+      return {
+        html: doc.body.innerHTML,
+        imageTransformations
+      };
+    }
+    
+    // Transform CSS for CMS preview
+    function transformCss(css, config) {
+      const { direction, idPrefix } = config;
+      
+      // Preserve all original CSS
+      let transformedCss = css;
+      
+      // Remove dark mode styles
+      transformedCss = transformedCss.replace(/\[data-theme=['"]dark['"]\][^{]*{[^}]*}/g, '');
+      transformedCss = transformedCss.replace(/@media\s+\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*{[^}]*}/g, '');
+      
+      // Add minimal CMS preview styles
+      const cmsStyles = `
 
 /* CMS Preview Styles */
 [id^="${idPrefix}_title"]:empty::before {
@@ -1353,14 +1213,10 @@
 }
 
 /* Direction */
-${
-  direction === "rtl" && !transformedCss.includes("direction: rtl")
-    ? `
+${direction === 'rtl' && !transformedCss.includes('direction: rtl') ? `
 [ControlID] {
   direction: rtl;
-}`
-    : ""
-}
+}` : ''}
 
 /* CSS Variables */
 :root {
@@ -1387,25 +1243,25 @@ ${
   --main-background: var(--main-background, #fff);
   --link: var(--link, #166dfc);
 }`;
-
-        return transformedCss + cmsStyles;
-      }
-
-      // Generate complete HTML document
-      function generateFullHtml(html, css, config) {
-        const { direction, controlId } = config;
-
-        return `<!DOCTYPE html>
-<html lang="en" dir="${direction || "auto"}">
+      
+      return transformedCss + cmsStyles;
+    }
+    
+    // Generate complete HTML document
+    function generateFullHtml(html, css, config) {
+      const { direction, controlId } = config;
+      
+      return `<!DOCTYPE html>
+<html lang="en" dir="${direction || 'auto'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CMS Preview - Control ${controlId || "Preview"}</title>
+  <title>CMS Preview - Control ${controlId || 'Preview'}</title>
   <style>
     body {
       margin: 0;
       padding: 20px;
-      direction: ${direction || "auto"};
+      direction: ${direction || 'auto'};
     }
 ${css}
   </style>
@@ -1414,13 +1270,13 @@ ${css}
 ${html}
 </body>
 </html>`;
-      }
-
-      // Update preview iframe
-      function updatePreview(html, css, direction) {
-        const content = `
+    }
+    
+    // Update preview iframe
+    function updatePreview(html, css, direction) {
+      const content = `
 <!DOCTYPE html>
-<html lang="en" dir="${direction || "auto"}">
+<html lang="en" dir="${direction || 'auto'}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1428,7 +1284,7 @@ ${html}
     body {
       margin: 0;
       padding: 20px;
-      direction: ${direction || "auto"};
+      direction: ${direction || 'auto'};
     }
     ${css}
   </style>
@@ -1437,71 +1293,69 @@ ${html}
   ${html}
 </body>
 </html>`;
-
-        previewIframe.srcdoc = content;
+      
+      previewIframe.srcdoc = content;
+    }
+    
+    // Update image transformations summary
+    function updateImageSummary(transformations) {
+      if (transformations.length === 0) {
+        imageSummary.classList.add('hidden');
+        return;
       }
-
-      // Update image transformations summary
-      function updateImageSummary(transformations) {
-        if (transformations.length === 0) {
-          imageSummary.classList.add("hidden");
-          return;
-        }
-
-        let summary = `Processed ${transformations.length} image URLs:\n\n`;
-
-        transformations.forEach((item, index) => {
-          summary += `Image ${index + 1}:\n`;
-          summary += `From: ${item.nextJsUrl.substring(0, 50)}...\n`;
-          summary += `To:   ${item.originalUrl.substring(0, 50)}...\n`;
-          summary += `Dimensions: h=${item.dimensions.h || "N/A"}, w=${
-            item.dimensions.w || "N/A"
-          }\n\n`;
-        });
-
-        imageContent.textContent = summary;
-        imageSummary.classList.remove("hidden");
-      }
-
-      // Copy to clipboard
-      function copyToClipboard(text, button) {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        textarea.style.position = "fixed";
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-
-        // Show copied indication
-        const originalText = button.textContent;
-        button.textContent = "Copied!";
-
-        setTimeout(() => {
-          button.textContent = originalText;
-        }, 2000);
-      }
-
-      // Download as HTML file
-      function downloadAsHtml() {
-        const combinedHtml = combinedOutput.value;
-        const controlId = controlIdInput.value || "preview";
-
-        const blob = new Blob([combinedHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `cms-preview-${controlId}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
-
-      // Load sample data
-      function loadSampleData() {
-        const sampleHtml = `<section class="five-articles-with-images-container">
+      
+      let summary = `Processed ${transformations.length} image URLs:\n\n`;
+      
+      transformations.forEach((item, index) => {
+        summary += `Image ${index + 1}:\n`;
+        summary += `From: ${item.nextJsUrl.substring(0, 50)}...\n`;
+        summary += `To:   ${item.originalUrl.substring(0, 50)}...\n`;
+        summary += `Dimensions: h=${item.dimensions.h || 'N/A'}, w=${item.dimensions.w || 'N/A'}\n\n`;
+      });
+      
+      imageContent.textContent = summary;
+      imageSummary.classList.remove('hidden');
+    }
+    
+    // Copy to clipboard
+    function copyToClipboard(text, button) {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      // Show copied indication
+      const originalText = button.textContent;
+      button.textContent = 'Copied!';
+      
+      setTimeout(() => {
+        button.textContent = originalText;
+      }, 2000);
+    }
+    
+    // Download as HTML file
+    function downloadAsHtml() {
+      const combinedHtml = combinedOutput.value;
+      const controlId = controlIdInput.value || 'preview';
+      
+      const blob = new Blob([combinedHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cms-preview-${controlId}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // Load sample data
+    function loadSampleData() {
+      const sampleHtml = `<section class="five-articles-with-images-container">
   <section class="five-articles-with-images-category-name-section">
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 23 29" class="sport1_icon">
       <g fill="#28F290" clip-path="url(#sport1Icon_svg__a)">
@@ -1554,7 +1408,7 @@ ${html}
   </section>
 </section>`;
 
-        const sampleCss = `/* Five Articles with Images Control */
+      const sampleCss = `/* Five Articles with Images Control */
 .five-articles-with-images-container {
   display: flex;
   flex-direction: column;
@@ -1672,46 +1526,39 @@ ${html}
   }
 }`;
 
-        htmlInput.value = sampleHtml;
-        cssInput.value = sampleCss;
-        controlIdInput.value = "7230";
-
-        // Auto-analyze the sample data
-        analyzeComponent();
-      }
-
-      // Event Listeners
-      analyzeButton.addEventListener("click", analyzeComponent);
-      transformButton.addEventListener("click", transformToCmsPreview);
-      loadSampleButton.addEventListener("click", loadSampleData);
-      clearButton.addEventListener("click", () => {
-        htmlInput.value = "";
-        cssInput.value = "";
-        controlIdInput.value = "";
-        htmlOutput.value = "";
-        cssOutput.value = "";
-        combinedOutput.value = "";
-        previewIframe.srcdoc =
-          "<html><body style='display:flex;justify-content:center;align-items:center;height:100%;color:#718096;font-family:system-ui;'>Analyze component to see preview</body></html>";
-        transformButton.disabled = true;
-        downloadButton.disabled = true;
-        imageSummary.classList.add("hidden");
-      });
-      downloadButton.addEventListener("click", downloadAsHtml);
-
-      // Copy buttons
-      copyHtmlButton.addEventListener("click", () =>
-        copyToClipboard(htmlOutput.value, copyHtmlButton)
-      );
-      copyCssButton.addEventListener("click", () =>
-        copyToClipboard(cssOutput.value, copyCssButton)
-      );
-      copyCombinedButton.addEventListener("click", () =>
-        copyToClipboard(combinedOutput.value, copyCombinedButton)
-      );
-
-      // Initialize with sample data
-      loadSampleData();
-    </script>
-  </body>
+      htmlInput.value = sampleHtml;
+      cssInput.value = sampleCss;
+      controlIdInput.value = '7230';
+      
+      // Auto-analyze the sample data
+      analyzeComponent();
+    }
+    
+    // Event Listeners
+    analyzeButton.addEventListener('click', analyzeComponent);
+    transformButton.addEventListener('click', transformToCmsPreview);
+    loadSampleButton.addEventListener('click', loadSampleData);
+    clearButton.addEventListener('click', () => {
+      htmlInput.value = '';
+      cssInput.value = '';
+      controlIdInput.value = '';
+      htmlOutput.value = '';
+      cssOutput.value = '';
+      combinedOutput.value = '';
+      previewIframe.srcdoc = "<html><body style='display:flex;justify-content:center;align-items:center;height:100%;color:#718096;font-family:system-ui;'>Analyze component to see preview</body></html>";
+      transformButton.disabled = true;
+      downloadButton.disabled = true;
+      imageSummary.classList.add('hidden');
+    });
+    downloadButton.addEventListener('click', downloadAsHtml);
+    
+    // Copy buttons
+    copyHtmlButton.addEventListener('click', () => copyToClipboard(htmlOutput.value, copyHtmlButton));
+    copyCssButton.addEventListener('click', () => copyToClipboard(cssOutput.value, copyCssButton));
+    copyCombinedButton.addEventListener('click', () => copyToClipboard(combinedOutput.value, copyCombinedButton));
+    
+    // Initialize with sample data
+    loadSampleData();
+  </script>
+</body>
 </html>
