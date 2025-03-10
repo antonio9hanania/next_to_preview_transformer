@@ -1139,8 +1139,25 @@
           return result;
         }
 
-        // Generic article detection
-        result.containerSelector = '[class*="section"]';
+        // Generic article detection with cascading checks
+        const hasClassWithSection =
+          doc.querySelectorAll('[class*="section"]').length > 0;
+        const hasClassWithContainer =
+          doc.querySelectorAll('[class*="container"]').length > 0;
+        const hasClassWithWrapper =
+          doc.querySelectorAll('[class*="wrapper"]').length > 0;
+
+        // Choose container selector based on what's found
+        if (hasClassWithSection) {
+          result.containerSelector = '[class*="section"]';
+        } else if (hasClassWithContainer) {
+          result.containerSelector = '[class*="container"]';
+        } else if (hasClassWithWrapper) {
+          result.containerSelector = '[class*="wrapper"]';
+        } else {
+          // Fallback if none of the patterns are found
+          result.containerSelector = ".control";
+        }
         result.titleSelector = '[class*="title"]';
         result.imageSelector = "img";
         result.linkSelector = "a[href]";
@@ -1207,9 +1224,9 @@
 
             const transformedHtml = transformResult.html;
 
-            // Transform CSS
+            // Transform CSS using the new improved transformer
             const transformedCss = transformCss(
-              transformedHtml,
+              transformedHtml, // Pass the transformed HTML
               cssInput.value.trim(),
               config.controlId
             );
@@ -1466,359 +1483,1308 @@
         return css;
       }
 
+      /**
+       * Final CSS transformation function
+       * - Ensures exact selector formatting
+       * - Only keeps CSS that precisely matches the HTML structure
+       * - Prevents duplicate variable definitions
+       */
       function transformCss(html, css, controlId) {
         try {
-          const cssWithVars = extractAndDefineCssVars(css, controlId);
+          // Step 1: Find the largest breakpoint
+          const largestBreakpoint = findLargestBreakpoint(css);
 
-          // Step 1: Remove media queries for smaller screen sizes
-          const largestBreakpoint = findLargestBreakpoint(cssWithVars);
-          let transformedCss = filterCSSByLargestBreakpoint(
-            cssWithVars,
+          // Step 2: Filter CSS for largest breakpoint
+          let filteredCss = filterCSSForLargestBreakpoint(
+            css,
             largestBreakpoint
           );
 
-          // Step 2: Clean up CSS and prefix with controlid
-          // Step 2: Clean up CSS and prefix with controlid
-          transformedCss = cleanupAndPrefixCss(html, transformedCss, controlId);
+          // Step 3: Extract information about the HTML structure
+          const domInfo = analyzeHtmlStructure(html);
+
+          // Step 4: Define variables only at :root
+          let transformedCss = extractCssVariables(filteredCss);
+
+          // Step 5: Extract only the CSS rules that match our exact DOM structure
+          transformedCss += extractRelevantCss(filteredCss, domInfo, controlId);
+
+          // Step 6: Add minimal CMS specific styles
+          transformedCss += getMinimalCmsHelpers(domInfo, controlId);
+
+          // Step 7: Simplify font declarations
+          transformedCss = simplifyFontDeclarations(transformedCss);
 
           return transformedCss;
         } catch (error) {
           console.error("Error in CSS transformation:", error);
-          // Return a basic CSS as fallback
-          return (
-            `[ControlID="${controlId}"] * { box-sizing: border-box; }\n` +
-            getCmsSpecificStyles(controlId)
-          );
+          return generateMinimalCss(controlId);
         }
       }
 
       /**
-       * Removes unused CSS classes from a stylesheet based on HTML content with specific container targeting.
-       * Enhanced version with better handling for complex CSS structures and selectors.
+       * Generic font simplification function that handles multiple font families
        *
-       * @param {string} html - The HTML content to analyze
-       * @param {string} css - The CSS content to optimize
-       * @param {string} controlId - The ID of the container to target (e.g., "7230")
-       * @returns {string} - Optimized CSS with unused classes removed
+       * This function:
+       * 1. Removes all Next.js font-face declarations
+       * 2. Adds simple placeholder font-face declarations for detected fonts
+       * 3. Replaces all Next.js font variable references
        */
-      function removeUnusedCss(html, css, controlId) {
-        // Step 1: Parse HTML to extract all used classes and elements
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
+      function simplifyFontDeclarations(css) {
+        // First, extract and save all existing Next.js font references before removing anything
+        const fontReferences = [];
 
-        // Get the container with controlId
-        const container = doc.querySelector(`[ControlID="${controlId}"]`);
-        if (!container) {
-          console.error(`Container with ControlID="${controlId}" not found`);
-          return css; // Return original CSS if container not found
+        // Check for font patterns in the CSS
+        const fontPatterns = [
+          {
+            pattern: /__Open_Sans_[a-zA-Z0-9_]+/g,
+            replacement: '"Open Sans"',
+            fontName: "Open Sans",
+          },
+          {
+            pattern: /__Arial_[a-zA-Z0-9_]+/g,
+            replacement: "Arial",
+            fontName: "Arial",
+          },
+          {
+            pattern: /__Roboto_[a-zA-Z0-9_]+/g,
+            replacement: "Roboto",
+            fontName: "Roboto",
+          },
+          {
+            pattern: /__Helvetica_[a-zA-Z0-9_]+/g,
+            replacement: "Helvetica",
+            fontName: "Helvetica",
+          },
+          {
+            pattern: /__Anek_Latin_[a-zA-Z0-9_]+/g,
+            replacement: '"Anek Latin"',
+            fontName: "Anek Latin",
+          },
+          {
+            pattern: /__Anek_Devanagari_[a-zA-Z0-9_]+/g,
+            replacement: '"Anek Devanagari"',
+            fontName: "Anek Devanagari",
+          },
+          {
+            pattern: /__Inter_[a-zA-Z0-9_]+/g,
+            replacement: "Inter",
+            fontName: "Inter",
+          },
+          {
+            pattern: /__Faustina_[a-zA-Z0-9_]+/g,
+            replacement: "Faustina",
+            fontName: "Faustina",
+          },
+          {
+            pattern: /__Khula_[a-zA-Z0-9_]+/g,
+            replacement: "Khula",
+            fontName: "Khula",
+          },
+          {
+            pattern: /__Rubik_[a-zA-Z0-9_]+/g,
+            replacement: "Rubik",
+            fontName: "Rubik",
+          },
+          // Generic fallback pattern - must be last
+          {
+            pattern: /__[a-zA-Z]+_Fallback_[a-zA-Z0-9_]+/g,
+            replacement: "Arial",
+            fontName: null,
+          },
+        ];
+
+        // Find all font references in the CSS
+        for (const { pattern, replacement, fontName } of fontPatterns) {
+          let match;
+          // Use a clone of the pattern to avoid affecting the original
+          const patternClone = new RegExp(pattern.source, pattern.flags);
+
+          while ((match = patternClone.exec(css)) !== null) {
+            if (fontName) {
+              fontReferences.push(fontName);
+            }
+          }
         }
 
-        // Extract all classes, IDs, and elements from the container and its children
+        // Remove duplicates
+        const uniqueFonts = [...new Set(fontReferences)];
+
+        // Now perform the replacements
+        let processedCss = css;
+
+        // Remove all Next.js font-face declarations
+        processedCss = processedCss.replace(
+          /@font-face\s*{[^}]*__[a-zA-Z0-9_]+[^}]*}/g,
+          ""
+        );
+
+        // Replace font references in the CSS
+        for (const { pattern, replacement } of fontPatterns) {
+          processedCss = processedCss.replace(pattern, replacement);
+        }
+
+        // Add the font declarations at the beginning
+        let fontDeclarations = `
+/* 
+ * CMS FONT DECLARATIONS
+ * Replace the paths below with your actual CMS font paths
+ */
+`;
+
+        // Add declarations for each unique font
+        if (uniqueFonts.length > 0) {
+          for (const fontName of uniqueFonts) {
+            const quotedName = fontName.includes(" ")
+              ? `"${fontName}"`
+              : fontName;
+            const fileName = fontName.replace(/\s+/g, "");
+
+            fontDeclarations += `
+@font-face {
+  font-family: ${quotedName};
+  src: url('YOUR_CMS_FONT_PATH/${fileName}-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: ${quotedName};
+  src: url('YOUR_CMS_FONT_PATH/${fileName}-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+`;
+          }
+        } else {
+          // Add default Open Sans declarations if no fonts were found
+          fontDeclarations += `
+@font-face {
+  font-family: "Open Sans";
+  src: url('YOUR_CMS_FONT_PATH/OpenSans-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Open Sans";
+  src: url('YOUR_CMS_FONT_PATH/OpenSans-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+`;
+        }
+
+        // Return the combined result
+        return fontDeclarations + processedCss;
+      }
+
+      /**
+       * Analyze the HTML structure to extract precise class hierarchies
+       */
+      function analyzeHtmlStructure(html) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+
+        // Find the element with controlid attribute
+        const controlElement = tempDiv.querySelector("[controlid]");
+
+        if (!controlElement) {
+          console.warn("No element with controlid attribute found");
+          return {
+            containerClass: null,
+            elementPaths: new Set(),
+            elements: new Map(),
+            usedIds: new Set(),
+          };
+        }
+
+        // Get the container's class
+        const containerClass = controlElement.className.trim();
+
+        // Track all possible element paths, all elements by tag, and all IDs
+        const elementPaths = new Set();
+        const elements = new Map(); // Map of tag names to sets of classes
+        const usedIds = new Set();
+
+        // Recursively process DOM elements
+        function processElement(element, currentPath = "") {
+          // Add the element's tag to our collection
+          const tagName = element.tagName.toLowerCase();
+          if (!elements.has(tagName)) {
+            elements.set(tagName, new Set());
+          }
+
+          // If this element has classes, process them
+          if (element.className && typeof element.className === "string") {
+            const classes = element.className
+              .trim()
+              .split(/\s+/)
+              .filter(Boolean);
+
+            if (classes.length > 0) {
+              // Add this class path to our paths collection
+              const classSelector = "." + classes.join(".");
+              const newPath = currentPath
+                ? `${currentPath} ${classSelector}`
+                : classSelector;
+              elementPaths.add(newPath);
+
+              // Add these classes to the tag collection
+              classes.forEach((cls) => elements.get(tagName).add(cls));
+
+              // Continue with this path
+              currentPath = newPath;
+            }
+          }
+
+          // Track IDs
+          if (element.id) {
+            usedIds.add(element.id);
+            // Add ID path too
+            const idPath = currentPath
+              ? `${currentPath} #${element.id}`
+              : `#${element.id}`;
+            elementPaths.add(idPath);
+          }
+
+          // Process all children
+          Array.from(element.children).forEach((child) => {
+            processElement(child, currentPath);
+          });
+        }
+
+        // Start processing from the control element
+        processElement(controlElement);
+
+        return {
+          containerClass,
+          elementPaths,
+          elements,
+          usedIds,
+        };
+      }
+
+      /**
+       * Extract CSS variables and define them at :root
+       */
+      function extractCssVariables(css) {
+        // Extract all CSS variable usages
+        const variableUsageRegex =
+          /var\(\s*--([\w-]+)(?:\s*,\s*([^)]+))?\s*\)/g;
+        const variablesUsed = new Set();
+
+        let match;
+        while ((match = variableUsageRegex.exec(css)) !== null) {
+          variablesUsed.add(match[1]);
+        }
+
+        // Extract existing variable definitions
+        const existingDefinitions = {};
+        const rootRegex = /:root\s*\{([^}]*)\}/g;
+
+        while ((match = rootRegex.exec(css)) !== null) {
+          const rootBody = match[1];
+          const varDefRegex = /--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+          let varMatch;
+
+          while ((varMatch = varDefRegex.exec(rootBody)) !== null) {
+            existingDefinitions[varMatch[1]] = varMatch[2].trim();
+          }
+        }
+
+        // Generate a clean :root block with only the used variables
+        let rootBlock = `:root {\n`;
+
+        // Add each used variable with its definition or a sensible default
+        for (const varName of variablesUsed) {
+          if (existingDefinitions[varName]) {
+            rootBlock += `  --${varName}: ${existingDefinitions[varName]};\n`;
+          } else {
+            // Provide sensible defaults based on variable name
+            if (varName.includes("font")) {
+              rootBlock += `  --${varName}: "Open Sans", Arial, sans-serif;\n`;
+            } else if (varName.includes("primary")) {
+              rootBlock += `  --${varName}: #000;\n`;
+            } else if (varName.includes("secondary")) {
+              rootBlock += `  --${varName}: #595959;\n`;
+            } else if (varName.includes("tertiary")) {
+              rootBlock += `  --${varName}: #737373;\n`;
+            } else if (varName.includes("error")) {
+              rootBlock += `  --${varName}: #be2c25;\n`;
+            } else if (varName.includes("brand")) {
+              rootBlock += `  --${varName}: #ef0027;\n`;
+            } else if (varName.includes("surface")) {
+              rootBlock += `  --${varName}: #fff;\n`;
+            } else if (varName.includes("outline")) {
+              rootBlock += `  --${varName}: #d4d4d4;\n`;
+            } else {
+              rootBlock += `  --${varName}: initial;\n`;
+            }
+          }
+        }
+
+        rootBlock += `}\n\n`;
+
+        // Remove existing variable definitions
+        const cleanedCss = css
+          .replace(/:root\s*\{[^}]*\}/g, "")
+          .replace(/\[ControlID[^\]]*\]\s*\{[^}]*\}/g, "")
+          .replace(
+            /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*\{[\s\S]*?\}/g,
+            ""
+          );
+
+        return rootBlock;
+      }
+
+      /**
+       * Extract only the CSS rules that match our DOM structure
+       */
+      function extractRelevantCss(css, domInfo, controlId) {
+        // Remove comments for cleaner processing
+        css = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+        // Get container class
+        const containerClass = domInfo.containerClass;
+
+        // Parse CSS rules
+        const rules = [];
+        let buffer = "";
+        let depth = 0;
+
+        // Extract rule blocks
+        for (let i = 0; i < css.length; i++) {
+          const char = css[i];
+          buffer += char;
+
+          if (char === "{") {
+            depth++;
+          } else if (char === "}") {
+            depth--;
+            if (depth === 0) {
+              rules.push(buffer.trim());
+              buffer = "";
+            }
+          }
+        }
+
+        // Process rules to keep only relevant ones with proper formatting
+        const relevantRules = [];
+
+        for (const rule of rules) {
+          // Keep @font-face rules
+          if (rule.startsWith("@font-face")) {
+            relevantRules.push(rule);
+            continue;
+          }
+
+          // Skip other @-rules
+          if (rule.startsWith("@")) {
+            continue;
+          }
+
+          // Extract selector and declaration
+          const selectorEnd = rule.indexOf("{");
+          if (selectorEnd === -1) continue;
+
+          const selectors = rule
+            .substring(0, selectorEnd)
+            .trim()
+            .split(",")
+            .map((s) => s.trim());
+          const declaration = rule.substring(selectorEnd);
+
+          // Check and transform each selector
+          const transformedSelectors = [];
+
+          for (const selector of selectors) {
+            // Skip :root, already handled separately
+            if (selector === ":root") continue;
+
+            // Transform selector if it's relevant
+            const transformedSelector = transformSelector(
+              selector,
+              domInfo,
+              containerClass,
+              controlId
+            );
+            if (transformedSelector) {
+              transformedSelectors.push(transformedSelector);
+            }
+          }
+
+          if (transformedSelectors.length > 0) {
+            relevantRules.push(transformedSelectors.join(", ") + declaration);
+          }
+        }
+
+        return relevantRules.join("\n\n");
+      }
+
+      /**
+       * Remove unused CSS and format selectors correctly
+       */
+      function removeUnusedCssAndFormatSelectors(
+        css,
+        usedSelectors,
+        controlId
+      ) {
+        // Remove comments
+        css = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+        // Extract all CSS rules
+        const rules = [];
+        let buffer = "";
+        let depth = 0;
+
+        // Parse CSS character by character to properly handle nested structures
+        for (let i = 0; i < css.length; i++) {
+          const char = css[i];
+          buffer += char;
+
+          if (char === "{") {
+            depth++;
+          } else if (char === "}") {
+            depth--;
+            if (depth === 0) {
+              rules.push(buffer.trim());
+              buffer = "";
+            }
+          }
+        }
+
+        // Only keep relevant rules and format selectors properly
+        const cleanedRules = [];
+
+        for (const rule of rules) {
+          // Special cases: @-rules like @font-face, @keyframes
+          if (/^\s*@(font-face|keyframes|import)/i.test(rule)) {
+            cleanedRules.push(rule);
+            continue;
+          }
+
+          // Extract the selector portion
+          const selectorEnd = rule.indexOf("{");
+          if (selectorEnd === -1) continue;
+
+          const selectors = rule
+            .substring(0, selectorEnd)
+            .trim()
+            .split(",")
+            .map((s) => s.trim());
+          const declaration = rule.substring(selectorEnd);
+
+          // Check and transform each selector
+          const relevantSelectors = [];
+
+          for (const selector of selectors) {
+            // Skip selectors containing @media or other @-rules
+            if (selector.includes("@")) continue;
+
+            // Check if this selector targets anything used in our HTML
+            if (isSelectorRelevant(selector, usedSelectors)) {
+              // Format the selector appropriately
+              const transformedSelector = transformSelector(
+                selector,
+                usedSelectors.containerClasses,
+                controlId
+              );
+              if (transformedSelector) {
+                relevantSelectors.push(transformedSelector);
+              }
+            }
+          }
+
+          // Only add the rule if it has relevant selectors
+          if (relevantSelectors.length > 0) {
+            cleanedRules.push(relevantSelectors.join(", ") + declaration);
+          }
+        }
+
+        return cleanedRules.join("\n\n");
+      }
+
+      /**
+       * Main function to transform CSS for CMS preview
+       * @param {string} html - The HTML content of the component
+       * @param {string} css - The original CSS content
+       * @param {string} controlId - The Control ID for targeting
+       * @returns {string} - Transformed CSS
+       */
+
+      function transformCssForCmsPreview(html, css, controlId) {
+        try {
+          // Step 1: Parse the HTML to extract all used selectors
+          const usedSelectors = extractUsedSelectorsFromHtml(html);
+
+          // Step 2: Extract and define all CSS variables with fallbacks
+          let transformedCss = handleCssVariables(css, controlId);
+
+          // Step 3: Remove unused CSS and scope relevant selectors
+          transformedCss = removeUnusedCssAndScopeSelectors(
+            transformedCss,
+            usedSelectors,
+            controlId
+          );
+
+          // Step 4: Add CMS-specific helper styles
+          transformedCss += getCmsHelperStyles(controlId);
+
+          return transformedCss;
+        } catch (error) {
+          console.error("Error transforming CSS:", error);
+          return generateFallbackCss(controlId);
+        }
+      }
+
+      /**
+       * Generate CMS helper styles
+       */
+      function getCmsHelperStyles(controlId) {
+        return `
+/* CMS Preview Helper Styles */
+[ControlID="${controlId}"] [id^="view_article_title"]:empty::before {
+  content: "Click to edit title";
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}
+
+[ControlID="${controlId}"] [id^="view_article_img"][src=""]::before {
+  content: "Image";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(240, 240, 240, 0.5);
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}
+
+
+/* Ensure proper spacing in CMS environment */
+[ControlID="${controlId}"] {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}`;
+      }
+
+      function generateFallbackCss(controlId) {
+        return `
+/* Fallback CSS */
+:root {
+  --primary: #000;
+  --secondary: #595959;
+  --tertiary: #737373;
+  --background: #fff;
+  --surface: #fff;
+  --outline: #d4d4d4;
+  --brand: #ef0027;
+  --error: #be2c25;
+  --font-open-sans: "Open Sans", Arial, sans-serif;
+}
+
+[ControlID="${controlId}"] {
+  --primary: var(--primary);
+  --secondary: var(--secondary);
+  --tertiary: var(--tertiary);
+  --background: var(--background);
+  --surface: var(--surface);
+  --outline: var(--outline);
+  --brand: var(--brand);
+  --error: var(--error);
+  --font-open-sans: var(--font-open-sans);
+}
+
+[ControlID="${controlId}"] * {
+  box-sizing: border-box;
+  font-family: var(--font-open-sans);
+}
+
+[ControlID="${controlId}"] img {
+  max-width: 100%;
+  height: auto;
+}
+
+${getCmsHelperStyles(controlId)}`;
+      }
+
+      /**
+       * Extract all selectors (classes, IDs, element tags) used in the HTML
+       * @param {string} html - The HTML content
+       * @returns {Object} - Object containing sets of used classes, IDs, and elements
+       */
+      function extractUsedSelectorsFromHtml(html) {
+        const tempDiv = document.createElement("div");
+        tempDiv.innerHTML = html;
+
+        // Initialize sets for tracking
         const classesInUse = new Set();
         const idsInUse = new Set();
-        const elementsInUse = new Set([
-          "div",
-          "section",
-          "a",
-          "img",
-          "span",
-          "p",
-          // Add more default elements that should always be included
-          "svg",
-          "path",
-          "rect",
-          "circle",
-          "button",
-          "input",
-          "ul",
-          "li",
-          "h1",
-          "h2",
-          "h3",
-          "h4",
-          "h5",
-          "h6",
-        ]);
-        const attributesInUse = new Set(); // For attribute selectors
+        const elementsInUse = new Set();
+        const attributesInUse = new Set();
 
-        function extractSelectors(element) {
+        // Find element with ControlID attribute - this is our container
+        const containerElement = tempDiv.querySelector("[controlid]");
+        const containerClasses = containerElement
+          ? Array.from(containerElement.classList)
+          : [];
+
+        // Helper to process an element
+        function processElement(element) {
           // Add element tag
           elementsInUse.add(element.tagName.toLowerCase());
 
           // Add classes
-          element.classList.forEach((cls) => classesInUse.add(cls));
+          if (element.classList && element.classList.length > 0) {
+            Array.from(element.classList).forEach((cls) =>
+              classesInUse.add(cls)
+            );
+          }
 
           // Add IDs
           if (element.id) idsInUse.add(element.id);
 
-          // Track attributes for attribute selectors
-          Array.from(element.attributes).forEach((attr) => {
-            attributesInUse.add(attr.name);
-          });
+          // Track attributes
+          if (element.attributes) {
+            Array.from(element.attributes).forEach((attr) => {
+              attributesInUse.add(attr.name.toLowerCase());
+
+              // For data-nimg attribute, track it specifically
+              if (attr.name === "data-nimg") {
+                attributesInUse.add(`data-nimg="${attr.value}"`);
+              }
+            });
+          }
 
           // Process children
-          Array.from(element.children).forEach(extractSelectors);
+          Array.from(element.children).forEach((child) =>
+            processElement(child)
+          );
         }
 
-        extractSelectors(container);
-
-        console.log("Classes found:", Array.from(classesInUse));
-        console.log("IDs found:", Array.from(idsInUse));
-        console.log("Elements found:", Array.from(elementsInUse));
-        console.log("Attributes found:", Array.from(attributesInUse));
-
-        // Step 2: Pre-process CSS - remove comments to simplify parsing
-        css = css.replace(/\/\*[\s\S]*?\*\//g, "");
-
-        // Step 3: Process CSS with improved structure handling
-        let cleanedCss = "";
-
-        // Function to check if a selector is relevant to our HTML
-        function isSelectorRelevant(selector) {
-          // Global selectors to always keep
-          if (
-            selector === "*" ||
-            selector === "body" ||
-            selector === "html" ||
-            selector === ":root" ||
-            selector.includes(":root")
-          ) {
-            return true;
-          }
-
-          // Always keep ControlID selectors and their descendants
-          if (selector.includes(`[ControlID="${controlId}"]`)) {
-            return true;
-          }
-
-          // Keep font-face declarations
-          if (selector.startsWith("@font-face")) {
-            return true;
-          }
-
-          // Check classes - handle class names with escaping and different contexts
-          for (const cls of classesInUse) {
-            // Match exact class or class as part of a chain
-            const escapedClass = cls.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const classRegex = new RegExp(
-              `\\.${escapedClass}($|[\\s.:\\[#>+~])`,
-              "i"
-            );
-            if (classRegex.test(selector)) {
-              return true;
-            }
-          }
-
-          // Check IDs
-          for (const id of idsInUse) {
-            const escapedId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const idRegex = new RegExp(`#${escapedId}($|[\\s.:\\[])`, "i");
-            if (idRegex.test(selector)) {
-              return true;
-            }
-          }
-
-          // Check element types
-          for (const element of elementsInUse) {
-            // Match element name with better boundary detection
-            const regex = new RegExp(
-              `(^|[\\s>+~:,])${element}($|[\\s.:#\\[,])`,
-              "i"
-            );
-            if (regex.test(selector)) {
-              return true;
-            }
-
-            // Also check for specific pseudo-elements and pseudo-classes
-            if (
-              selector.includes(`${element}:`) ||
-              selector.includes(`${element}::`)
-            ) {
-              return true;
-            }
-          }
-
-          // Check attribute selectors
-          for (const attr of attributesInUse) {
-            if (
-              selector.includes(`[${attr}`) ||
-              selector.includes(`[${attr}=`)
-            ) {
-              return true;
-            }
-          }
-
-          return false;
+        // Process starting from the container element if found, otherwise the whole div
+        if (containerElement) {
+          processElement(containerElement);
+        } else {
+          Array.from(tempDiv.children).forEach((child) =>
+            processElement(child)
+          );
         }
 
-        // Process CSS with better structure handling
-        // This approach handles nested structures like @media queries
-        function processCss(css) {
-          // Special case for @font-face, @keyframes, etc.
-          if (
-            css.trim().startsWith("@font-face") ||
-            css.trim().startsWith("@keyframes") ||
-            css.trim().startsWith("@import")
-          ) {
-            return css;
-          }
-
-          let result = "";
-          let depth = 0;
-          let currentRule = "";
-          let currentSelectors = "";
-          let inComment = false;
-          let inString = false;
-          let stringChar = "";
-
-          for (let i = 0; i < css.length; i++) {
-            const char = css[i];
-
-            // Handle comments and strings
-            if (char === "/" && css[i + 1] === "*" && !inString) {
-              inComment = true;
-              i++; // Skip the next character
-              continue;
-            } else if (char === "*" && css[i + 1] === "/" && inComment) {
-              inComment = false;
-              i++; // Skip the next character
-              continue;
-            } else if (inComment) {
-              continue;
-            } else if (
-              (char === '"' || char === "'") &&
-              (i === 0 || css[i - 1] !== "\\")
-            ) {
-              if (inString && char === stringChar) {
-                inString = false;
-              } else if (!inString) {
-                inString = true;
-                stringChar = char;
-              }
-            }
-
-            if (inString) {
-              currentRule += char;
-              continue;
-            }
-
-            // Process actual CSS structure
-            if (char === "{") {
-              depth++;
-
-              if (depth === 1) {
-                // We're entering a new rule
-                currentSelectors = currentRule.trim();
-                currentRule = "";
-
-                // Special handling for at-rules
-                if (currentSelectors.startsWith("@")) {
-                  result += currentSelectors + " {";
-                } else {
-                  // Normal selectors - check relevance and add prefix if needed
-                  const selectorList = currentSelectors
-                    .split(",")
-                    .map((s) => s.trim());
-                  const relevantSelectors = [];
-
-                  for (const selector of selectorList) {
-                    if (isSelectorRelevant(selector)) {
-                      // For selectors that should be global or already have the ControlID
-                      if (
-                        selector === "*" ||
-                        selector === "body" ||
-                        selector === "html" ||
-                        selector === ":root" ||
-                        selector.includes(":root") ||
-                        selector.includes(`[ControlID="${controlId}"]`)
-                      ) {
-                        relevantSelectors.push(selector);
-                      } else {
-                        // Add prefix to other selectors
-                        relevantSelectors.push(
-                          `[ControlID="${controlId}"] ${selector}`
-                        );
-                      }
-                    }
-                  }
-
-                  if (relevantSelectors.length > 0) {
-                    result += relevantSelectors.join(", ") + " {";
-                  } else {
-                    // Skip this rule block entirely
-                    let braceCount = 1;
-                    while (braceCount > 0 && i < css.length - 1) {
-                      i++;
-                      if (css[i] === "{") braceCount++;
-                      if (css[i] === "}") braceCount--;
-                    }
-                    depth--;
-                    currentRule = "";
-                    continue;
-                  }
-                }
-              } else {
-                // We're inside a nested structure
-                currentRule += char;
-              }
-            } else if (char === "}") {
-              depth--;
-
-              if (depth === 0) {
-                // We're exiting a rule
-                if (currentRule.trim()) {
-                  // If there's content, process it recursively for nested structures
-                  if (
-                    currentSelectors.startsWith("@media") ||
-                    currentSelectors.startsWith("@supports")
-                  ) {
-                    // For media and support queries, process inner content
-                    const processedInner = processCss(currentRule);
-                    if (processedInner.trim()) {
-                      result += currentRule + "}";
-                    }
-                  } else {
-                    // Regular rule content
-                    result += currentRule + "}";
-                  }
-                } else {
-                  result += "}";
-                }
-                currentRule = "";
-              } else {
-                // We're inside a nested structure
-                currentRule += char;
-              }
-            } else {
-              if (depth === 0) {
-                currentRule += char;
-              } else {
-                currentRule += char;
-              }
-            }
-          }
-
-          return result;
-        }
-
-        // Process the CSS
-        const processedCss = processCss(css);
-
-        // Final formatting - remove empty rules and multiple spaces
-        return processedCss
-          .replace(/\s*\{\s*\}\s*/g, "") // Remove empty rules
-          .replace(/\n\s*\n/g, "\n") // Remove empty lines
-          .replace(/\s+/g, " ") // Collapse whitespace
-          .replace(/\{\s+/g, "{ ") // Normalize space after {
-          .replace(/\s+\}/g, " }") // Normalize space before }
-          .replace(/;\s+/g, "; ") // Normalize space after ;
-          .replace(/;\s*\}/g, " }") // Remove last semicolon
-          .replace(/,\s+/g, ", ") // Normalize space after comma
-          .replace(/\s*\{\s*/g, " { ") // Normalize spaces around {
-          .replace(/\s*\}\s*/g, " }\n") // Add newline after }
-          .trim();
+        return {
+          classes: classesInUse,
+          ids: idsInUse,
+          elements: elementsInUse,
+          attributes: attributesInUse,
+          containerClasses,
+        };
       }
 
+      /**
+       * Extract and properly define all CSS variables used in the styles
+       * @param {string} css - The original CSS
+       * @param {string} controlId - The Control ID
+       * @returns {string} - CSS with properly defined variables
+       */
+      function handleCssVariables(css) {
+        // Extract all CSS variable usages
+        const variableUsageRegex =
+          /var\(\s*--([\w-]+)(?:\s*,\s*([^)]+))?\s*\)/g;
+        const variablesUsed = new Set();
+
+        let match;
+        while ((match = variableUsageRegex.exec(css)) !== null) {
+          variablesUsed.add(match[1]);
+        }
+
+        // Extract existing variable definitions
+        const existingDefinitions = {};
+        const rootRegex = /:root\s*\{([^}]*)\}/g;
+
+        while ((match = rootRegex.exec(css)) !== null) {
+          const rootBody = match[1];
+          const varDefRegex = /--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
+          let varMatch;
+
+          while ((varMatch = varDefRegex.exec(rootBody)) !== null) {
+            existingDefinitions[varMatch[1]] = varMatch[2].trim();
+          }
+        }
+
+        // Generate a clean :root block with just the used variables
+        let rootBlock = `:root {\n`;
+
+        // Common defaults for various types
+        const defaultColors = {
+          primary: "#000",
+          secondary: "#595959",
+          tertiary: "#737373",
+          background: "#fff",
+          surface: "#fff",
+          "surface-container": "#f0f0f0",
+          "surface-container-low": "#f6f6f6",
+          "outline-light": "#e2e8f0",
+          outline: "#aaa",
+          brand: "#ef0027",
+          error: "#be2c25",
+          cta: "#166dfc",
+          link: "#166dfc",
+        };
+
+        // Add each used variable with its definition or a sensible default
+        for (const varName of variablesUsed) {
+          if (existingDefinitions[varName]) {
+            // Use existing definition if available
+            rootBlock += `  --${varName}: ${existingDefinitions[varName]};\n`;
+          } else if (varName.includes("font")) {
+            // Default for font variables
+            rootBlock += `  --${varName}: "Open Sans", Arial, sans-serif;\n`;
+          } else {
+            // Try to find a default color
+            let defaultApplied = false;
+            for (const [key, value] of Object.entries(defaultColors)) {
+              if (varName.includes(key)) {
+                rootBlock += `  --${varName}: ${value};\n`;
+                defaultApplied = true;
+                break;
+              }
+            }
+
+            // If no match found, use a generic value
+            if (!defaultApplied) {
+              rootBlock += `  --${varName}: initial;\n`;
+            }
+          }
+        }
+
+        rootBlock += `}\n\n`;
+
+        // Remove existing :root blocks, ControlID variable blocks, and dark mode
+        let processedCss = css
+          .replace(/:root\s*\{[^}]*\}/g, "")
+          .replace(/\[ControlID[^\]]*\]\s*\{[^}]*\}/g, "")
+          .replace(
+            /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*\{[\s\S]*?\}/g,
+            ""
+          );
+
+        return rootBlock + processedCss;
+      }
+
+      /**
+       * Remove unused CSS and scope relevant selectors
+       * @param {string} css - The CSS content with variables defined
+       * @param {Object} usedSelectors - Object containing used classes, IDs, elements
+       * @param {string} controlId - The Control ID
+       * @returns {string} - Clean and scoped CSS
+       */
+      function removeUnusedCssAndScopeSelectors(css, usedSelectors, controlId) {
+        // Pre-process CSS to remove comments
+        css = css.replace(/\/\*[\s\S]*?\*\//g, "");
+
+        // Process CSS rule by rule
+        const rules = [];
+        let currentRule = "";
+        let inBlock = false;
+        let braceCount = 0;
+
+        // Simple state machine to extract rules
+        for (let i = 0; i < css.length; i++) {
+          currentRule += css[i];
+
+          if (css[i] === "{") {
+            braceCount++;
+            inBlock = true;
+          } else if (css[i] === "}") {
+            braceCount--;
+            if (braceCount === 0) {
+              rules.push(currentRule);
+              currentRule = "";
+              inBlock = false;
+            }
+          }
+        }
+
+        // Process each rule
+        const transformedRules = [];
+
+        for (let rule of rules) {
+          // Special handling for @-rules
+          if (rule.trim().startsWith("@")) {
+            // Always keep @font-face, @keyframes, etc.
+            if (
+              rule.trim().startsWith("@font-face") ||
+              rule.trim().startsWith("@keyframes") ||
+              rule.trim().startsWith("@import")
+            ) {
+              transformedRules.push(rule);
+            }
+            continue;
+          }
+
+          // For normal CSS rules
+          const openBraceIndex = rule.indexOf("{");
+          if (openBraceIndex === -1) continue;
+
+          const selectorText = rule.substring(0, openBraceIndex).trim();
+          const cssBody = rule.substring(openBraceIndex);
+
+          // Split for comma-separated selectors
+          const selectors = selectorText.split(",").map((s) => s.trim());
+          const relevantSelectors = [];
+
+          for (const selector of selectors) {
+            if (isSelectorRelevant(selector)) {
+              // Transform the selector
+              if (selector === "html" || selector === "body") {
+                relevantSelectors.push(`[ControlID="${controlId}"]`);
+              } else if (
+                selector === ":root" ||
+                selector.includes("[ControlID")
+              ) {
+                relevantSelectors.push(selector);
+              } else {
+                relevantSelectors.push(
+                  `[ControlID="${controlId}"] ${selector}`
+                );
+              }
+            }
+          }
+
+          if (relevantSelectors.length > 0) {
+            transformedRules.push(relevantSelectors.join(", ") + cssBody);
+          }
+        }
+
+        return transformedRules.join("\n");
+      }
+      // Helper function to check if a selector is relevant
+      function isSelectorRelevant(selector, usedSelectors) {
+        // Global selectors - typically transform these
+        if (
+          selector === ":root" ||
+          selector === "html" ||
+          selector === "body" ||
+          selector === "*"
+        ) {
+          return true;
+        }
+
+        // Already ControlID targeted selectors
+        if (selector.includes("[ControlID")) {
+          return true;
+        }
+
+        // Check for class selectors
+        for (const cls of usedSelectors.classes) {
+          if (selector.includes(`.${cls}`)) {
+            return true;
+          }
+        }
+
+        // Check for ID selectors
+        for (const id of usedSelectors.ids) {
+          if (selector.includes(`#${id}`)) {
+            return true;
+          }
+        }
+
+        // Check for element selectors
+        for (const element of usedSelectors.elements) {
+          // Simple check for element presence
+          const elementRegex = new RegExp(
+            `(^|[\\s>+~,])${element}($|[\\s.:#\\[,>+~])`,
+            "i"
+          );
+          if (elementRegex.test(selector)) {
+            return true;
+          }
+        }
+
+        // Check for attribute selectors
+        for (const attr of usedSelectors.attributes) {
+          if (
+            selector.includes(`[${attr}]`) ||
+            selector.includes(`[${attr}=`)
+          ) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+      function isSelectorRelevant(selector, usedSelectors) {
+        // Global selectors - typically transform these
+        if (
+          selector === ":root" ||
+          selector === "html" ||
+          selector === "body" ||
+          selector === "*"
+        ) {
+          return true;
+        }
+
+        // Already ControlID targeted selectors
+        if (selector.includes("[ControlID")) {
+          return true;
+        }
+
+        // Check for class selectors
+        for (const cls of usedSelectors.classes) {
+          if (selector.includes(`.${cls}`)) {
+            return true;
+          }
+        }
+
+        // Check for ID selectors
+        for (const id of usedSelectors.ids) {
+          if (selector.includes(`#${id}`)) {
+            return true;
+          }
+        }
+
+        // Check for element selectors
+        for (const element of usedSelectors.elements) {
+          // Simple check for element presence
+          const elementRegex = new RegExp(
+            `(^|[\\s>+~,])${element}($|[\\s.:#\\[,>+~])`,
+            "i"
+          );
+          if (elementRegex.test(selector)) {
+            return true;
+          }
+        }
+
+        // Check for attribute selectors
+        for (const attr of usedSelectors.attributes) {
+          if (
+            selector.includes(`[${attr}]`) ||
+            selector.includes(`[${attr}=`)
+          ) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Transform a selector to the correct format if it's relevant
+       * Fixed to properly handle container class in multi-part selectors
+       */
+      function transformSelector(selector, domInfo, containerClass, controlId) {
+        // Handle html/body selectors
+        if (selector === "html" || selector === "body") {
+          return `[ControlID="${controlId}"]`;
+        }
+
+        // Skip selectors that already have ControlID
+        if (selector.includes("[ControlID")) {
+          return null;
+        }
+
+        // Split the selector into parts to check the first part
+        const selectorParts = selector.split(" ");
+        const firstPart = selectorParts[0];
+
+        // Check if the first part of the selector matches the container class
+        // This handles selectors like ".container-class .child-class"
+        const containerClassesArray = containerClass
+          ? containerClass.split(/\s+/)
+          : [];
+        const containerClassPattern =
+          containerClassesArray.length > 0
+            ? new RegExp(
+                `^\\.(${containerClassesArray.join("|")})($|[.:\\[#])`,
+                "i"
+              )
+            : null;
+
+        const isContainerSelector =
+          containerClassPattern && containerClassPattern.test(firstPart);
+
+        // Check other matching conditions
+        const isPathMatch = isMatchingDomPath(selector, domInfo.elementPaths);
+        const isElementMatch = isMatchingDomElement(selector, domInfo.elements);
+
+        // Check for ID selectors
+        const idMatch = selector.match(/#([\w-]+)/);
+        const hasMatchingId = idMatch && domInfo.usedIds.has(idMatch[1]);
+
+        // Only transform if the selector is relevant
+        if (
+          isContainerSelector ||
+          isPathMatch ||
+          isElementMatch ||
+          hasMatchingId
+        ) {
+          if (isContainerSelector) {
+            // Container selector - no space between ControlID and first part
+            // Keep the original spacing between other parts
+            return `[ControlID="${controlId}"]${firstPart}${
+              selectorParts.length > 1
+                ? " " + selectorParts.slice(1).join(" ")
+                : ""
+            }`;
+          } else {
+            // Descendant selector - with space
+            return `[ControlID="${controlId}"] ${selector}`;
+          }
+        }
+
+        return null;
+      }
+      /**
+       * Check if a selector matches a known path in our DOM
+       */
+      function isMatchingDomPath(selector, paths) {
+        // Simplify the selector for comparison
+        const simplified = selector
+          .replace(/\s*>\s*/g, " > ") // Normalize child combinator spacing
+          .replace(/\s+/g, " ") // Normalize spacing
+          .trim();
+
+        // Check each path for a potential match
+        for (const path of paths) {
+          if (selector.includes(path)) {
+            return true;
+          }
+
+          // Partial path matching
+          const selectorParts = simplified.split(" ");
+          const pathParts = path.split(" ");
+
+          // Check if the selector parts appear in sequence in the path
+          let pathIndex = 0;
+          let matchCount = 0;
+
+          for (let i = 0; i < selectorParts.length; i++) {
+            const part = selectorParts[i];
+
+            // Skip combinators
+            if (part === ">" || part === "+" || part === "~") continue;
+
+            // Look for this part in the remaining path
+            while (pathIndex < pathParts.length) {
+              if (pathParts[pathIndex].includes(part)) {
+                matchCount++;
+                pathIndex++;
+                break;
+              }
+              pathIndex++;
+            }
+          }
+
+          // If we matched most parts, consider it a match
+          if (matchCount > 0 && matchCount >= selectorParts.length * 0.7) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Check if a selector matches known elements in our DOM
+       */
+      function isMatchingDomElement(selector, elements) {
+        // Check element tag selectors
+        for (const [tag, classes] of elements.entries()) {
+          // Simple tag selector
+          if (selector === tag) return true;
+
+          // Tag with class
+          if (selector.startsWith(tag + ".")) {
+            // Extract the class from the selector
+            const classMatch = selector.match(new RegExp(`${tag}\\.([-\\w]+)`));
+            if (classMatch && classes.has(classMatch[1])) {
+              return true;
+            }
+          }
+
+          // Class selector that matches our elements
+          for (const cls of classes) {
+            if (
+              selector === `.${cls}` ||
+              selector.includes(`.${cls} `) ||
+              selector.includes(`.${cls}.`)
+            ) {
+              return true;
+            }
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Generate minimal CMS helper styles
+       */
+      function getMinimalCmsHelpers(domInfo, controlId) {
+        let styles = "\n/* CMS Helper Styles */\n";
+
+        // Add title placeholders if we have title elements
+        let hasTitleElements = false;
+        for (const id of domInfo.usedIds) {
+          if (id.includes("view_article_title")) {
+            hasTitleElements = true;
+            break;
+          }
+        }
+
+        if (hasTitleElements) {
+          styles += `[ControlID="${controlId}"] [id^="view_article_title"]:empty::before {
+  content: "Click to edit title";
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}\n\n`;
+        }
+
+        // Add image placeholders if we have image elements
+        let hasImageElements = false;
+        for (const id of domInfo.usedIds) {
+          if (id.includes("view_article_img")) {
+            hasImageElements = true;
+            break;
+          }
+        }
+
+        if (hasImageElements) {
+          styles += `[ControlID="${controlId}"] [id^="view_article_img"][src=""]::before {
+  content: "Image";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(240, 240, 240, 0.5);
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}\n`;
+        }
+
+        return styles;
+      }
+
+      /**
+       * Generate minimal fallback CSS
+       */
+      function generateMinimalCss(controlId) {
+        return `
+:root {
+  --primary: #000;
+  --secondary: #595959;
+  --tertiary: #737373;
+  --outline: #d4d4d4;
+  --font-open-sans: "Open Sans", Arial, sans-serif;
+}
+
+[ControlID="${controlId}"] * {
+  box-sizing: border-box;
+  font-family: var(--font-open-sans);
+}
+
+[ControlID="${controlId}"] [id^="view_article_title"]:empty::before {
+  content: "Click to edit title";
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}
+
+[ControlID="${controlId}"] [id^="view_article_img"][src=""]::before {
+  content: "Image";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(240, 240, 240, 0.5);
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}`;
+      }
+
+      function getMinimalCmsStyles(usedSelectors, controlId) {
+        let styles = `\n/* Minimal CMS Preview Styles */\n`;
+
+        // Only add title placeholder if view_article_title is used
+        let hasTitleElements = false;
+        for (const id of usedSelectors.ids) {
+          if (id.includes("view_article_title")) {
+            hasTitleElements = true;
+            break;
+          }
+        }
+
+        if (hasTitleElements) {
+          styles += `[ControlID="${controlId}"] [id^="view_article_title"]:empty::before {
+  content: "Click to edit title";
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}\n\n`;
+        }
+
+        // Only add image placeholder if view_article_img is used
+        let hasImageElements = false;
+        for (const id of usedSelectors.ids) {
+          if (id.includes("view_article_img")) {
+            hasImageElements = true;
+            break;
+          }
+        }
+
+        if (hasImageElements) {
+          styles += `[ControlID="${controlId}"] [id^="view_article_img"][src=""]::before {
+  content: "Image";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(240, 240, 240, 0.5);
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}\n`;
+        }
+
+        return styles;
+      }
+
+      function generateMinimalFallbackCss(controlId) {
+        return `
+:root {
+  --primary: #000;
+  --secondary: #595959;
+  --tertiary: #737373;
+  --surface: #fff;
+  --outline: #d4d4d4;
+  --font-open-sans: "Open Sans", Arial, sans-serif;
+}
+
+[ControlID="${controlId}"] * {
+  box-sizing: border-box;
+  font-family: var(--font-open-sans);
+}
+
+[ControlID="${controlId}"] [id^="view_article_title"]:empty::before {
+  content: "Click to edit title";
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}
+
+[ControlID="${controlId}"] [id^="view_article_img"][src=""]::before {
+  content: "Image";
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  background: rgba(240, 240, 240, 0.5);
+  color: rgba(153, 153, 153, 0.7);
+  font-style: italic;
+}`;
+      }
+
+      /**
+       * CMS-specific styles for better preview experience
+       */
       function getCmsSpecificStyles(controlId) {
         return `
 /* CMS Preview Styles */
@@ -1840,15 +2806,21 @@
 }
 
 
-
-
-
-/* Fix for absolute positioning */
-[ControlID="${controlId}"] [style*="position: absolute"] {
+/* Fix for Next.js image sizing */
+[ControlID="${controlId}"] img[data-nimg="fill"] {
   position: relative !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 150px !important;
+}
+
+/* Ensure proper spacing in CMS environment */
+[ControlID="${controlId}"] {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }`;
       }
-
       function scopeSelector(selector, controlId) {
         // Split compound selectors
         const selectorParts = selector.split(",").map((s) => s.trim());
@@ -1872,166 +2844,6 @@
         return scopedParts.join(", ");
       }
 
-      /**
-       * Extract CSS variables from the CSS and define them properly
-       * This ensures variables are accessible within the CMS preview
-       */
-      function extractAndDefineCssVars(css, controlId) {
-        // Extract all CSS variables used
-        const varUsageRegex = /var\(\s*--([\w-]+)(?:\s*,\s*([^)]+))?\s*\)/g;
-        const cssVars = new Set();
-
-        let match;
-        while ((match = varUsageRegex.exec(css)) !== null) {
-          cssVars.add(match[1]); // Add variable name without '--'
-        }
-
-        // Extract variable definitions from light mode :root only
-        // We'll exclude any :root with [data-theme="dark"] or similar attributes
-        const rootVarDefinitions = {};
-
-        // First, let's get the "clean" :root definition (no theme attributes)
-        const rootRegex =
-          /(?<!\w):root(?!\s*\[)(?:\s*\{\s*)([\s\S]*?)(?:\s*\})/g;
-        while ((match = rootRegex.exec(css)) !== null) {
-          const rootBody = match[1];
-          const varDefRegex = /--([a-zA-Z0-9-]+)\s*:\s*([^;]+);/g;
-          let varMatch;
-
-          while ((varMatch = varDefRegex.exec(rootBody)) !== null) {
-            rootVarDefinitions[varMatch[1]] = varMatch[2].trim();
-          }
-        }
-
-        console.log("Found variable definitions:", rootVarDefinitions);
-
-        // Remove all existing :root declarations
-        let cssWithoutRoot = css.replace(
-          /:root\s*(?:\[data-theme=['"]?[^'"\]]*['"]?\])?\s*{[^}]*}/g,
-          ""
-        );
-
-        // Also remove dark mode media queries
-        cssWithoutRoot = cssWithoutRoot.replace(
-          /@media\s*\(\s*prefers-color-scheme\s*:\s*dark\s*\)\s*{[\s\S]*?}/g,
-          ""
-        );
-
-        // Create new :root declaration with only the variables we actually need
-        let rootDefinition = `:root {\n`;
-        for (const varName of cssVars) {
-          if (rootVarDefinitions[varName]) {
-            rootDefinition += `  --${varName}: ${rootVarDefinitions[varName]};\n`;
-          }
-        }
-        rootDefinition += "}\n\n";
-
-        // Create ControlID-scoped definition that references the root variables
-        let cmsPreviewDefinition = `[ControlID="${controlId}"] {\n`;
-        for (const varName of cssVars) {
-          // Only include used variables
-          if (rootVarDefinitions[varName] || cssVars.has(varName)) {
-            cmsPreviewDefinition += `  --${varName}: var(--${varName});\n`;
-          }
-        }
-        cmsPreviewDefinition += "}\n\n";
-
-        return rootDefinition + cmsPreviewDefinition + cssWithoutRoot;
-      }
-      /**
-       * Correctly scope CSS selectors by PREFIXING [ControlID] attribute
-       * This is the CRITICAL FIX for your issue
-       */
-      function fixSelectorScoping(css, controlId) {
-        if (!controlId) return css;
-
-        // Process CSS rule by rule to maintain valid CSS structure
-        // Split CSS into rules (handling nested blocks correctly)
-        const processedChunks = [];
-        let depth = 0;
-        let currentChunk = "";
-        let inComment = false;
-
-        // Process character by character to handle CSS structure correctly
-        for (let i = 0; i < css.length; i++) {
-          const char = css[i];
-          currentChunk += char;
-
-          // Skip processing inside comments
-          if (char === "/" && css[i + 1] === "*") {
-            inComment = true;
-          } else if (char === "*" && css[i + 1] === "/") {
-            inComment = false;
-            currentChunk += "/"; // Add the closing slash
-            i++; // Skip the next character
-            continue;
-          }
-
-          if (inComment) continue;
-
-          // Track nesting depth
-          if (char === "{") {
-            depth++;
-          } else if (char === "}") {
-            depth--;
-
-            // When we close a top-level block, process it
-            if (depth === 0) {
-              processedChunks.push(processCssChunk(currentChunk, controlId));
-              currentChunk = "";
-            }
-          }
-        }
-
-        // Process any remaining CSS
-        if (currentChunk) {
-          processedChunks.push(currentChunk);
-        }
-
-        return processedChunks.join("");
-      }
-
-      /**
-       * Process a chunk of CSS (a rule or block)
-       */
-      function processCssChunk(chunk, controlId) {
-        // Skip if this is a media query, keyframe, or other special block
-        if (
-          chunk.match(
-            /@(media|keyframes|font-face|import|charset|supports|page)/i
-          )
-        ) {
-          return chunk;
-        }
-
-        // Find the selector part (everything before the first {)
-        const openBraceIndex = chunk.indexOf("{");
-        if (openBraceIndex === -1) return chunk;
-
-        const selector = chunk.substring(0, openBraceIndex).trim();
-        const restOfChunk = chunk.substring(openBraceIndex);
-
-        // Don't modify if it's not a standard selector or already has ControlID
-        if (
-          !selector ||
-          selector.includes("@") ||
-          selector.includes("[ControlID")
-        ) {
-          return chunk;
-        }
-
-        // Split into individual selectors and prefix each one
-        const selectors = selector.split(",").map((s) => s.trim());
-        const prefixedSelectors = selectors.map((s) => {
-          // Don't prefix :root, html, or body
-          if (s === ":root" || s === "html" || s === "body") {
-            return s;
-          }
-          return `[ControlID="${controlId}"] ${s}`;
-        });
-
-        return prefixedSelectors.join(", ") + restOfChunk;
-      }
       /**
        * Helper function to remove CSS blocks (media queries, font-face, etc.)
        */
@@ -2077,48 +2889,6 @@
       }
 
       /**
-       * Properly scope CSS selectors with ControlID attribute
-       */
-      function scopeCSSSelectors(css, controlId) {
-        if (!controlId) return css;
-
-        return css.replace(
-          /([^{@]+)\{([^}]*)\}/g,
-          (match, selectors, declarations) => {
-            // Skip if this is a special rule like @media
-            if (selectors.trim().startsWith("@")) {
-              return match;
-            }
-
-            try {
-              // Split and process selectors
-              const selectorList = selectors.split(",").map((s) => s.trim());
-
-              const scopedSelectors = selectorList.map((selector) => {
-                // Skip certain selectors
-                if (
-                  selector === ":root" ||
-                  selector === "html" ||
-                  selector === "body" ||
-                  selector.includes("[ControlID")
-                ) {
-                  return selector;
-                }
-
-                // Prefix with [controlid="X"] to scope the styles
-                return `[ControlID="${controlId}"] ${selector}`;
-              });
-
-              return `${scopedSelectors.join(", ")} {${declarations}}`;
-            } catch (error) {
-              console.error("Error processing selector:", error);
-              return match; // Return the original if there's an error
-            }
-          }
-        );
-      }
-
-      /**
        * Special fix for data-nimg styles to prevent conflicts
        */
       function fixDataNimgStyles(css, controlId) {
@@ -2141,114 +2911,6 @@
           }
           return `[ControlID="${controlId}"] ${match}`;
         });
-
-        return result;
-      }
-
-      /**
-       * Parse CSS into a more structured format
-       * This handles rules, at-rules, and comments properly
-       */
-      function parseCSS(css) {
-        const result = [];
-        let currentIndex = 0;
-
-        // Helper to extract until a specific character
-        const extractUntil = (endChar) => {
-          let content = "";
-          let nesting = 0;
-
-          while (currentIndex < css.length) {
-            const char = css[currentIndex];
-
-            if (char === "{") nesting++;
-            else if (char === "}") {
-              nesting--;
-              if (nesting < 0) break; // End of a block
-            } else if (char === endChar && nesting === 0) break;
-
-            content += char;
-            currentIndex++;
-          }
-
-          return content;
-        };
-
-        // Process the CSS character by character
-        while (currentIndex < css.length) {
-          const char = css[currentIndex];
-
-          // Handle comments
-          if (char === "/" && css[currentIndex + 1] === "*") {
-            const startIndex = currentIndex;
-            currentIndex += 2; // Skip /*
-
-            while (currentIndex < css.length) {
-              if (css[currentIndex] === "*" && css[currentIndex + 1] === "/") {
-                currentIndex += 2; // Skip */
-                break;
-              }
-              currentIndex++;
-            }
-
-            result.push({
-              type: "comment",
-              text: css.substring(startIndex, currentIndex),
-            });
-            continue;
-          }
-
-          // Handle @-rules (like @media, @keyframes)
-          if (char === "@") {
-            const startIndex = currentIndex;
-            const ruleName = extractUntil("{").trim();
-            currentIndex++; // Skip {
-
-            // Extract the body of the at-rule with proper nesting handling
-            let body = "";
-            let nesting = 1;
-
-            while (currentIndex < css.length && nesting > 0) {
-              const c = css[currentIndex];
-              body += c;
-
-              if (c === "{") nesting++;
-              else if (c === "}") nesting--;
-
-              currentIndex++;
-            }
-
-            result.push({
-              type: "at-rule",
-              name: ruleName,
-              body: body,
-              text: css.substring(startIndex, currentIndex),
-            });
-            continue;
-          }
-
-          // Handle regular CSS rules
-          if (/[a-zA-Z*.#[:]/.test(char)) {
-            const startIndex = currentIndex;
-            const selectorText = extractUntil("{").trim();
-            currentIndex++; // Skip {
-
-            // Extract the body of the rule
-            const body = extractUntil("}").trim();
-            currentIndex++; // Skip }
-
-            result.push({
-              type: "rule",
-              selectors: selectorText.split(","),
-              body: body,
-              text: css.substring(startIndex, currentIndex),
-            });
-            continue;
-          }
-
-          // Skip whitespace and other non-relevant characters
-          currentIndex++;
-        }
 
         return result;
       }
@@ -2287,6 +2949,64 @@
         return result;
       }
 
+      function isRuleRelevant(selector, usedSelectors) {
+        // Split compound selectors (e.g., ".class1, .class2")
+        const individualSelectors = selector.split(",").map((s) => s.trim());
+
+        for (const individualSelector of individualSelectors) {
+          // Check if the selector targets any used class
+          for (const cls of usedSelectors.classes) {
+            if (individualSelector.includes("." + cls)) {
+              return true;
+            }
+          }
+
+          // Check if the selector targets any used ID
+          for (const id of usedSelectors.ids) {
+            if (individualSelector.includes("#" + id)) {
+              return true;
+            }
+          }
+
+          // Check if the selector targets any used element
+          for (const element of usedSelectors.elements) {
+            // Simple check - could be improved to handle complex selectors better
+            if (individualSelector.match(new RegExp(`\\b${element}\\b`))) {
+              return true;
+            }
+          }
+
+          // Special case for [ControlID] selectors - always keep these
+          if (individualSelector.includes("[ControlID")) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      /**
+       * Parse and convert a breakpoint value (e.g., "min-width: 768px") to pixels
+       */
+      function parseBreakpointValue(str) {
+        const match = str.match(/(\d+)(px|em|rem)/);
+        if (!match) return null;
+
+        let value = parseInt(match[1], 10);
+        const unit = match[2];
+
+        // Convert em/rem to pixels (assuming base font size of 16px)
+        if (unit === "em" || unit === "rem") {
+          value = value * 16;
+        }
+
+        return value;
+      }
+      /**
+       * Find the largest breakpoint in the CSS
+       * @param {string} css - The CSS to analyze
+       * @returns {number} - The largest breakpoint size in pixels
+       */
       function findLargestBreakpoint(css) {
         const breakpoints = [];
 
@@ -2323,115 +3043,13 @@
           }
         });
 
-        return breakpoints.length > 0 ? Math.max(...breakpoints) : 1440; // Default to 1440px if no breakpoints found
-      }
-
-      function identifyUsedSelectors(html, cssAst) {
-        // Parse HTML to get DOM
-        const dom = new JSDOM(html);
-        const document = dom.window.document;
-
-        // Extract all class names from HTML
-        const classesInUse = new Set();
-        const elementsInUse = new Set([
-          "body",
-          "html",
-          "div",
-          "a",
-          "img",
-          "section",
-        ]); // Base elements
-
-        // Collect all classes from the HTML
-        document.querySelectorAll("*").forEach((element) => {
-          if (element.className) {
-            element.className.split(" ").forEach((cls) => {
-              if (cls.trim().length > 0) {
-                classesInUse.add(cls.trim());
-              }
-            });
-          }
-          elementsInUse.add(element.tagName.toLowerCase());
-        });
-
-        // Determine which CSS rules apply to the HTML
-        const usedRules = [];
-
-        cssAst.walkRules((rule) => {
-          // Skip @keyframes rules and other special cases
-          if (
-            rule.parent.type === "atrule" &&
-            (rule.parent.name === "keyframes" ||
-              rule.parent.name === "font-face")
-          ) {
-            return;
-          }
-
-          // Check if the selector matches anything in our HTML
-          const selectors = rule.selector.split(",");
-          let isUsed = false;
-
-          for (const selector of selectors) {
-            // Check basic elements
-            for (const element of elementsInUse) {
-              if (selector.includes(element)) {
-                isUsed = true;
-                break;
-              }
-            }
-
-            // Check classes
-            for (const className of classesInUse) {
-              if (selector.includes("." + className)) {
-                isUsed = true;
-                break;
-              }
-            }
-
-            if (isUsed) break;
-          }
-
-          if (isUsed) {
-            usedRules.push(rule);
-          }
-        });
-
-        return usedRules;
+        return breakpoints.length > 0 ? Math.max(...breakpoints) : 1280; // Default to 1280px if no breakpoints found
       }
 
       /**
-       * Extract styles for the largest breakpoint using a more robust approach
+       * Filter CSS to keep only base styles and styles for the largest breakpoint
        */
-      function extractLargestBreakpointStyles(css) {
-        // Find all breakpoints from all media queries
-        const breakpoints = [];
-
-        // Extract min-width values
-        const minWidthMatches =
-          css.match(/min-width\s*:\s*(\d+)(px|em|rem)/g) || [];
-        for (const match of minWidthMatches) {
-          const value = parseBreakpointValue(match);
-          if (value) breakpoints.push(value);
-        }
-
-        // Extract max-width values
-        const maxWidthMatches =
-          css.match(/max-width\s*:\s*(\d+)(px|em|rem)/g) || [];
-        for (const maxMatch of maxWidthMatches) {
-          const value = parseBreakpointValue(maxMatch);
-          if (value) breakpoints.push(value);
-        }
-
-        // Find the largest breakpoint or use a sensible default
-        const largestBreakpoint =
-          breakpoints.length > 0 ? Math.max(...breakpoints) : 1280;
-        console.log(`Identified largest breakpoint: ${largestBreakpoint}px`);
-
-        // Filter CSS rules
-        return filterCSSForLargestBreakpoint(css, largestBreakpoint);
-      }
-
-      function filterCSSByLargestBreakpoint(css, largestBreakpoint) {
+      function filterCSSForLargestBreakpoint(css, largestBreakpoint) {
         // Keep base CSS (not in media queries)
         let baseCss = css.replace(/@media[\s\S]*?\{([\s\S]*?)\}\s*\}/g, "");
 
@@ -2491,333 +3109,6 @@
         return baseCss + "\n" + largeScreenRules;
       }
 
-      function collectUsedClasses(html) {
-        // Create a temporary DOM parser
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-
-        // Collect all classes used in the HTML
-        const classesUsed = new Set();
-        const idsUsed = new Set();
-        const elementsUsed = new Set([
-          "body",
-          "html",
-          "div",
-          "a",
-          "img",
-          "section",
-        ]);
-
-        // Function to extract classes from an element
-        function processElement(element) {
-          // Add tag name
-          elementsUsed.add(element.tagName.toLowerCase());
-
-          // Process class names
-          if (element.className && typeof element.className === "string") {
-            element.className.split(/\s+/).forEach((cls) => {
-              if (cls) classesUsed.add(cls);
-            });
-          }
-
-          // Process IDs
-          if (element.id) {
-            idsUsed.add(element.id);
-          }
-
-          // Process children
-          Array.from(element.children).forEach(processElement);
-        }
-
-        // Process all elements starting from the body
-        if (doc.body) {
-          processElement(doc.body);
-        }
-
-        return {
-          classes: Array.from(classesUsed),
-          ids: Array.from(idsUsed),
-          elements: Array.from(elementsUsed),
-        };
-      }
-
-      function isRuleRelevant(selector, usedSelectors) {
-        // Split compound selectors (e.g., ".class1, .class2")
-        const individualSelectors = selector.split(",").map((s) => s.trim());
-
-        for (const individualSelector of individualSelectors) {
-          // Check if the selector targets any used class
-          for (const cls of usedSelectors.classes) {
-            if (individualSelector.includes("." + cls)) {
-              return true;
-            }
-          }
-
-          // Check if the selector targets any used ID
-          for (const id of usedSelectors.ids) {
-            if (individualSelector.includes("#" + id)) {
-              return true;
-            }
-          }
-
-          // Check if the selector targets any used element
-          for (const element of usedSelectors.elements) {
-            // Simple check - could be improved to handle complex selectors better
-            if (individualSelector.match(new RegExp(`\\b${element}\\b`))) {
-              return true;
-            }
-          }
-
-          // Special case for [ControlID] selectors - always keep these
-          if (individualSelector.includes("[ControlID")) {
-            return true;
-          }
-        }
-
-        return false;
-      }
-
-      /**
-       * Parse and convert a breakpoint value (e.g., "min-width: 768px") to pixels
-       */
-      function parseBreakpointValue(str) {
-        const match = str.match(/(\d+)(px|em|rem)/);
-        if (!match) return null;
-
-        let value = parseInt(match[1], 10);
-        const unit = match[2];
-
-        // Convert em/rem to pixels (assuming base font size of 16px)
-        if (unit === "em" || unit === "rem") {
-          value = value * 16;
-        }
-
-        return value;
-      }
-
-      /**
-       * Filter CSS to keep only base styles and styles for the largest breakpoint
-       */
-      function filterCSSForLargestBreakpoint(css, largestBreakpoint) {
-        const baseRules = []; // Non-media query rules
-        const largeRules = []; // Rules from largest breakpoint media queries
-
-        // Process all media queries
-        let result = css;
-        const mediaQueryRegex = /@media[^{]+\{([\s\S]*?)\}/g;
-
-        // First extract and filter media queries
-        result = result.replace(mediaQueryRegex, (match, content) => {
-          const mediaText = match.substring(0, match.indexOf("{")).trim();
-
-          // For "min-width" media queries
-          if (mediaText.includes("min-width")) {
-            const minMatch = mediaText.match(
-              /min-width\s*:\s*(\d+)(px|em|rem)/
-            );
-            if (minMatch) {
-              let minValue = parseInt(minMatch[1], 10);
-              if (minMatch[2] === "em" || minMatch[2] === "rem") {
-                minValue *= 16;
-              }
-
-              // Keep rules where min-width <= largest breakpoint
-              if (minValue <= largestBreakpoint) {
-                // Extract inner rules
-                largeRules.push(content);
-                return ""; // Remove from original CSS
-              }
-            }
-          }
-
-          // For "max-width" media queries - exclude these as they target smaller screens
-          if (mediaText.includes("max-width")) {
-            const maxMatch = mediaText.match(
-              /max-width\s*:\s*(\d+)(px|em|rem)/
-            );
-            if (maxMatch) {
-              let maxValue = parseInt(maxMatch[1], 10);
-              if (maxMatch[2] === "em" || maxMatch[2] === "rem") {
-                maxValue *= 16;
-              }
-
-              // Keep rules where max-width >= largest breakpoint (rare case)
-              if (maxValue >= largestBreakpoint) {
-                largeRules.push(content);
-              }
-            }
-          }
-
-          return ""; // Remove all other media queries
-        });
-
-        // Keep all non-media query rules
-        baseRules.push(result);
-
-        // Combine base rules and large breakpoint rules
-        return baseRules.concat(largeRules).join("\n");
-      }
-
-      /**
-       * Helper function to properly remove blocks of CSS
-       * This is a CRITICAL FIX to ensure blocks are removed correctly
-       */
-      function removeBlocks(css, startPattern) {
-        let result = css;
-        let startMatch;
-
-        // Create a copy of the regex to prevent lastIndex issues
-        const regex = new RegExp(startPattern.source, startPattern.flags);
-
-        while ((startMatch = regex.exec(result)) !== null) {
-          const startIndex = startMatch.index;
-          const matchedText = startMatch[0];
-
-          // Find the matching closing brace by counting braces
-          let braceCount = 1;
-          let endIndex = startIndex + matchedText.length;
-
-          while (braceCount > 0 && endIndex < result.length) {
-            if (result[endIndex] === "{") {
-              braceCount++;
-            } else if (result[endIndex] === "}") {
-              braceCount--;
-            }
-            endIndex++;
-          }
-
-          // Remove the block
-          result = result.substring(0, startIndex) + result.substring(endIndex);
-
-          // Reset regex position since we modified the string
-          regex.lastIndex = 0;
-        }
-
-        return result;
-      }
-
-      /**
-       * Simplify font declarations
-       */
-      function simplifyFonts(css) {
-        // Add font notice comment
-        const fontComment = `
-/* 
- * FONT NOTICE:
- * To display correctly, upload standard versions of these fonts to your CMS:
- * - Open Sans
- * - Anek Latin
- * - Anek Devanagari
- * - Inter
- * - Faustina
- * - Khula
- */
-`;
-
-        // Replace Next.js font patterns
-        let simplifiedCss = css;
-
-        // Pattern replacements for fonts
-        const fontPatterns = [
-          { pattern: /__Open_Sans_[a-zA-Z0-9_]+/g, replacement: '"Open Sans"' },
-          { pattern: /__Arial_[a-zA-Z0-9_]+/g, replacement: "Arial" },
-          { pattern: /__Roboto_[a-zA-Z0-9_]+/g, replacement: "Roboto" },
-          { pattern: /__Helvetica_[a-zA-Z0-9_]+/g, replacement: "Helvetica" },
-          {
-            pattern: /__Anek_Latin_[a-zA-Z0-9_]+/g,
-            replacement: '"Anek Latin"',
-          },
-          {
-            pattern: /__Anek_Devanagari_[a-zA-Z0-9_]+/g,
-            replacement: '"Anek Devanagari"',
-          },
-          { pattern: /__Inter_[a-zA-Z0-9_]+/g, replacement: "Inter" },
-          { pattern: /__Faustina_[a-zA-Z0-9_]+/g, replacement: "Faustina" },
-          { pattern: /__Khula_[a-zA-Z0-9_]+/g, replacement: "Khula" },
-
-          // Fallback patterns
-          {
-            pattern: /__[a-zA-Z]+_Fallback_[a-zA-Z0-9_]+/g,
-            replacement: "Arial",
-          },
-        ];
-
-        for (const { pattern, replacement } of fontPatterns) {
-          simplifiedCss = simplifiedCss.replace(pattern, replacement);
-        }
-
-        // Remove @font-face declarations
-        simplifiedCss = simplifiedCss.replace(/@font-face\s*\{[^}]*\}/g, "");
-
-        // Remove Next.js specific font classes
-        simplifiedCss = simplifiedCss.replace(
-          /\.__className_[a-zA-Z0-9_]+\s*\{[^}]*\}/g,
-          ""
-        );
-        simplifiedCss = simplifiedCss.replace(
-          /\.__variable_[a-zA-Z0-9_]+\s*\{[^}]*\}/g,
-          ""
-        );
-
-        // Remove Google Fonts imports
-        simplifiedCss = simplifiedCss.replace(
-          /@import\s+["']https:\/\/fonts\.googleapis\.com\/css[^"']+["'];?/g,
-          ""
-        );
-
-        // Fix CSS variable declarations for fonts
-        simplifiedCss = simplifiedCss.replace(
-          /--font-[a-z-]+:\s*"__[a-zA-Z]+_[a-zA-Z0-9_]+","__[a-zA-Z]+_[a-zA-Z0-9_]+"/g,
-          '--font-family: "Open Sans", Arial, sans-serif'
-        );
-
-        return fontComment + simplifiedCss;
-      }
-
-      /**
-       * Add CMS-specific styles
-       */
-      function addCmsSpecificStyles(controlId, idPrefix, direction) {
-        return `
-
-/* CMS Preview Styles */
-[ControlID="${controlId}"] [id^="${idPrefix}_title"]:empty::before {
-  content: "Click to edit title";
-  color: rgba(153, 153, 153, 0.7);
-  font-style: italic;
-}
-
-[ControlID="${controlId}"] [id^="${idPrefix}_img"][src=""]::before {
-  content: "Image";
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  background: rgba(240, 240, 240, 0.5);
-  color: rgba(153, 153, 153, 0.7);
-  font-style: italic;
-}
-
-/* Direction */
-${
-  direction === "rtl"
-    ? `
-[ControlID="${controlId}"] {
-  direction: rtl;
-}`
-    : ""
-}
-
-
-
-
-
-/* Fix for position styles that might affect the preview */
-[ControlID="${controlId}"] [style*="position: absolute"] {
-  position: relative !important;
-}`;
-      }
-
       function scopeStyles(css, controlId) {
         if (!controlId) return css;
 
@@ -2856,195 +3147,6 @@ ${
             return match;
           }
         });
-      }
-
-      function cleanupAndPrefixCss(html, css, controlId) {
-        // Step 1: Remove all @keyframes blocks since they're not needed
-        let processedCss = css.replace(
-          /@keyframes\s+[^{]+\s*{[\s\S]*?}\s*}/g,
-          ""
-        );
-
-        // Step 2: Parse the HTML to extract actual used classes
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-
-        // Get the container element with ControlID
-        const containerElement = doc.querySelector(
-          `[ControlID="${controlId}"]`
-        );
-        if (!containerElement) {
-          console.warn("Container element with controlid not found");
-          return css; // Return original if container not found
-        }
-
-        // Extract all classes from the HTML within our container
-        const classesInUse = new Set();
-        const elementTagsInUse = new Set([
-          "div",
-          "section",
-          "a",
-          "img",
-          "span",
-          "p",
-          "h1",
-          "h2",
-          "h3",
-          "h4",
-          "h5",
-          "h6",
-          "ul",
-          "li",
-        ]);
-
-        // Process all elements in the container
-        function extractClasses(element) {
-          // Add element tag
-          elementTagsInUse.add(element.tagName.toLowerCase());
-
-          // Add classes
-          if (element.classList) {
-            element.classList.forEach((className) => {
-              classesInUse.add(className);
-            });
-          }
-
-          // Process children
-          Array.from(element.children).forEach(extractClasses);
-        }
-
-        extractClasses(containerElement);
-
-        console.log("Classes in use:", Array.from(classesInUse));
-        console.log("Element tags in use:", Array.from(elementTagsInUse));
-
-        // Step 3: Process CSS rules to only keep relevant ones
-        const relevantRules = [];
-
-        // Simple CSS rule parser
-        const ruleRegex = /([^{@]+)\{([^}]*)\}/g;
-        let match;
-
-        while ((match = ruleRegex.exec(processedCss)) !== null) {
-          const selectors = match[1].trim();
-          const declarations = match[2].trim();
-
-          // Skip if empty
-          if (!selectors || !declarations) continue;
-
-          // Skip media queries and other at-rules
-          if (selectors.startsWith("@")) continue;
-
-          // Split for compound selectors
-          const selectorList = selectors.split(",").map((s) => s.trim());
-          const relevantSelectors = [];
-
-          for (const selector of selectorList) {
-            // Check if selector matches any of our used classes or elements
-            let isRelevant = false;
-
-            // Quick check for universal selectors - always include
-            if (
-              selector === "*" ||
-              selector === "body" ||
-              selector === "html" ||
-              selector.includes(":root")
-            ) {
-              relevantSelectors.push(selector);
-              continue;
-            }
-
-            // Check for element selectors
-            for (const tag of elementTagsInUse) {
-              // Match tag name but only as a complete word (not as part of another word)
-              const regex = new RegExp(
-                `(^|\\s|>|\\+|~)${tag}(\\s|$|\\.|\\[|\\:|>|\\+|~)`,
-                "i"
-              );
-              if (regex.test(selector)) {
-                isRelevant = true;
-                break;
-              }
-            }
-
-            // Check for class selectors
-            if (!isRelevant) {
-              for (const className of classesInUse) {
-                if (selector.includes(`.${className}`)) {
-                  isRelevant = true;
-                  break;
-                }
-              }
-            }
-
-            if (isRelevant) {
-              relevantSelectors.push(selector);
-            }
-          }
-
-          // If we have relevant selectors, add them to our rules
-          if (relevantSelectors.length > 0) {
-            relevantRules.push({
-              selectors: relevantSelectors,
-              declarations: declarations,
-            });
-          }
-        }
-
-        // Step 4: Generate the new CSS with prefixed selectors
-        let newCss = "";
-
-        for (const rule of relevantRules) {
-          // Apply the ControlID prefix correctly
-          const prefixedSelectors = rule.selectors.map((selector) => {
-            // Skip prefixing for certain selectors
-            if (
-              selector === "body" ||
-              selector === "html" ||
-              selector === "*" ||
-              selector.includes(":root")
-            ) {
-              return selector;
-            }
-
-            // Check if the selector starts with our containerElement's class
-            // to avoid double-prefixing parent containers
-            const containerClass = containerElement.classList[0];
-            if (selector.startsWith(`.${containerClass}`)) {
-              return selector;
-            }
-
-            // Prefix with ControlID (lowercase to match HTML attribute)
-            return `[ControlID="${controlId}"] ${selector}`;
-          });
-
-          newCss += `${prefixedSelectors.join(", ")} {\n  ${
-            rule.declarations
-          }\n}\n\n`;
-        }
-
-        // Add CMS-specific styles
-        newCss += getCmsSpecificStyles(controlId);
-
-        return newCss;
-      }
-
-      /**
-       * Handle RTL styles properly
-       */
-      function handleRtlStyles(css, direction) {
-        if (direction !== "rtl") return css;
-
-        // Convert legacy direction properties to logical properties
-        let rtlCss = css;
-
-        // Only perform these replacements if we're in RTL mode
-        rtlCss = rtlCss.replace(/margin-left/g, "margin-inline-start");
-        rtlCss = rtlCss.replace(/margin-right/g, "margin-inline-end");
-        rtlCss = rtlCss.replace(/padding-left/g, "padding-inline-start");
-        rtlCss = rtlCss.replace(/padding-right/g, "padding-inline-end");
-
-        return rtlCss;
       }
 
       // Generate complete HTML document
@@ -3154,7 +3256,6 @@ ${html}
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       }
-
       // Load sample data
       function loadSampleData() {
         const sampleHtml = `<section class="homepage-five-articles-with-images-container"><section class="five-articles-with-images-container"><section class="five-articles-with-images-category-name-section false"><svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 23 29" class="sport1_icon"><g fill="#28F290" clip-path="url(#sport1Icon_svg__a)"><path d="M16.824 8.792a1.78 1.78 0 0 1-1.497-2.023 1.77 1.77 0 0 1 1.998-1.515 1.78 1.78 0 0 1 1.497 2.022 1.77 1.77 0 0 1-1.998 1.516"></path><path d="M19.226 13.545c.353-1.67.884-3.259 1.727-4.626L23 5.381l-.865-.72s-2.077 3.43-2.938 4.436c-.7.815-1.777 1.215-2.866.937-1.243-.319-2.003-1.416-2.121-2.644-.117-1.213-.272-5.126-.272-5.126h-1.067V28.72h1.106s.874-5.738 1.146-7.672c.04-.287.159-.883.841-.884.26 0 .493.105.647.29l4.926 6.893.904-.592s-1.9-3.563-2.45-4.79c-1.24-2.767-1.42-5.315-.765-8.42M4.95 5.732A1.784 1.784 0 0 1 6.447 3.71a1.77 1.77 0 0 1 1.998 1.515 1.784 1.784 0 0 1-1.497 2.023A1.77 1.77 0 0 1 4.95 5.732"></path><path d="M9.833.72s-.154 3.916-.271 5.127c-.118 1.227-.853 2.44-2.122 2.644-1.99.318-2.864-1.225-4.018-2.363C2.287 5.011.865 3.692.865 3.692L0 4.582l.003.003c2.903 2.15 4.978 5.774 4.978 10.09 0 4.317-1.834 7.753-4.595 9.819l.896.927s.82-.421 3.166-2.947c.62-.667 2.715-3.564 2.715-3.564a.83.83 0 0 1 .647-.29c.682.001.8.597.84.884.274 1.934 1.147 7.672 1.147 7.672h1.106V.721h-1.07"></path></g><defs><clipPath id="sport1Icon_svg__a"><path fill="#fff" d="M0 .72h23v28H0z"></path></clipPath></defs></svg><a href="https://sport1.maariv.co.il"><section class="five-articles-with-images-category-name false">ספורט 1</section></a></section><section class="five-articles-with-images-main-article-section"><a href="https://sport1.maariv.co.il/world-basketball/nba/article/1495932"><section class="five-articles-with-images-main-image-wrapper"><img alt="וולקאם. יאניס (צילום: GettyImages, Gary Dineen/NBAE)" loading="lazy" decoding="async" data-nimg="fill" class="five-articles-with-images-main-image" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" sizes="100vw" srcset="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=3840&amp;q=75 3840w" src="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966904&amp;w=3840&amp;q=75"></section><section class="five-articles-with-images-main-article-title">הקאבס הראשונים שהבטיחו פלייאוף, יאניס נכנס למועדון של הגדולים</section></a><section class="five-articles-with-images-main-article-reporter">מערכת ספורט 1</section></section><section class="five-articles-with-images-secondary-articles-section"><section class="five-articles-with-images-secondary-article-image-container"><a href="https://sport1.maariv.co.il/israeli-soccer/fantasy-league/article/1495925"><section class="five-articles-with-images-secondary-image-wrapper"><img alt="ברק בכר עם חולצה כתומה לזכר ילדי ביבס (צילום: דני מרון)" loading="lazy" decoding="async" data-nimg="fill" class="five-articles-with-images-secondary-article-image" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" sizes="100vw" srcset="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=3840&amp;q=75 3840w" src="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F964601&amp;w=3840&amp;q=75"></section><section class="five-articles-with-images-secondary-article-title">"זה עניין לוועדת חקירה": אקס מכבי חיפה זועם על ההחלטה של ברק בכר</section></a></section><section class="five-articles-with-images-secondary-article-image-container"><a href="https://sport1.maariv.co.il/world-basketball/nba/article/1495920"><section class="five-articles-with-images-secondary-image-wrapper"><img alt="דני אבדיה, פורטלנד טריילבלייזרס (צילום: GettyImages, Maddie Meyer)" loading="lazy" decoding="async" data-nimg="fill" class="five-articles-with-images-secondary-article-image" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" sizes="100vw" srcset="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=3840&amp;q=75 3840w" src="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966903&amp;w=3840&amp;q=75"></section><section class="five-articles-with-images-secondary-article-title">אבדיה קלע 12 ונפצע, מופע שלשות של בוסטון הכניע את פורטלנד</section></a></section><section class="five-articles-with-images-secondary-article-image-container"><a href="https://sport1.maariv.co.il/world-soccer/champions-league/article/1495842"><section class="five-articles-with-images-secondary-image-wrapper"><img alt="הארווי אליוט, אליסון, שחקני ליברפול (צילום: GettyImages, Julian Finney)" loading="lazy" decoding="async" data-nimg="fill" class="five-articles-with-images-secondary-article-image" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" sizes="100vw" srcset="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=3840&amp;q=75 3840w" src="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F966896&amp;w=3840&amp;q=75"></section><section class="five-articles-with-images-secondary-article-title">"המשחק הכי טוב שלי העונה? כנראה הכי טוב בקריירה"</section></a></section><section class="five-articles-with-images-secondary-article-image-container"><a href="https://sport1.maariv.co.il/israeli-basketball/winner-basketball-league/article/1495835"><section class="five-articles-with-images-secondary-image-wrapper"><img alt="&quot;לא חווינו אווירה כזו&quot;. לאקוביץ' (צילום: דני מרון)" loading="lazy" decoding="async" data-nimg="fill" class="five-articles-with-images-secondary-article-image" style="position:absolute;height:100%;width:100%;left:0;top:0;right:0;bottom:0;color:transparent" sizes="100vw" srcset="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=640&amp;q=75 640w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=750&amp;q=75 750w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=828&amp;q=75 828w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=1080&amp;q=75 1080w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=1200&amp;q=75 1200w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=1920&amp;q=75 1920w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=2048&amp;q=75 2048w, /_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=3840&amp;q=75 3840w" src="/_next/image?url=https%3A%2F%2Fimages.maariv.co.il%2Fimage%2Fupload%2Ff_auto%2Cfl_lossy%2Fc_fill%2Cg_faces%3Acenter%2Ch_250%2Cw_250%2F938731&amp;w=3840&amp;q=75"></section><section class="five-articles-with-images-secondary-article-title">פרופיל: יאקה לאקוביץ' רוצה הזדמנות נוספת לעלות ליורוליג</section></a></section></section></section></section>`;
