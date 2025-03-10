@@ -1141,17 +1141,17 @@
 
         // Generic article detection with cascading checks
         const hasClassWithSection =
-          doc.querySelectorAll('[class*="section"]').length > 0;
-        const hasClassWithContainer =
           doc.querySelectorAll('[class*="container"]').length > 0;
+        const hasClassWithContainer =
+          doc.querySelectorAll('[class*="section"]').length > 0;
         const hasClassWithWrapper =
           doc.querySelectorAll('[class*="wrapper"]').length > 0;
 
         // Choose container selector based on what's found
         if (hasClassWithSection) {
-          result.containerSelector = '[class*="section"]';
-        } else if (hasClassWithContainer) {
           result.containerSelector = '[class*="container"]';
+        } else if (hasClassWithContainer) {
+          result.containerSelector = '[class*="section"]';
         } else if (hasClassWithWrapper) {
           result.containerSelector = '[class*="wrapper"]';
         } else {
